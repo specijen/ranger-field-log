@@ -1,0 +1,1053 @@
+<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#17201b"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/icon-192.png"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Ranger Field Log</title>
+<style>
+/* Layout: one-column field tool on a phone (entry form, then log); form beside log on wide screens. System fonts only, so nothing is fetched when offline. */
+:root {
+  --bg: #e9eeea;
+  --surface: #ffffff;
+  --sunk: #f3f6f3;
+  --ink: #17201b;
+  --muted: #56645b;
+  --line: #c9d3cc;
+  --accent: #e2580b;
+  --accent-ink: #a83e05;
+  --on-accent: #ffffff;
+  --control: #b3261e;
+  --sight: #0b7565;
+  --maint: #8a5f00;
+  --good: #1d7a3a;
+  --warn: #9a6400;
+  --bad: #b3261e;
+  --rec: #d0201a;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-head: "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-data: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1411; --surface: #18201b; --sunk: #121915; --ink: #e5ece7; --muted: #98a69d; --line: #2c3731;
+    --accent: #ff7a2e; --accent-ink: #ff9b5e; --on-accent: #1a0d04;
+    --control: #ff6f63; --sight: #3cc8b1; --maint: #e2b347; --good: #5fd283; --warn: #e8b84a; --bad: #ff6f63; --rec: #ff4d45;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1411; --surface: #18201b; --sunk: #121915; --ink: #e5ece7; --muted: #98a69d; --line: #2c3731;
+  --accent: #ff7a2e; --accent-ink: #ff9b5e; --on-accent: #1a0d04;
+  --control: #ff6f63; --sight: #3cc8b1; --maint: #e2b347; --good: #5fd283; --warn: #e8b84a; --bad: #ff6f63; --rec: #ff4d45;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 16px; line-height: 1.45; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--ink); color: var(--bg);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  padding: 10px 16px;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand strong { font-family: var(--f-head); font-weight: 700; font-size: 1.25rem; letter-spacing: .02em; text-transform: uppercase; }
+.brand span { color: color-mix(in srgb, var(--bg) 70%, var(--ink)); font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px;
+  font-size: .8rem; font-family: var(--f-data); font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--bg) 14%, var(--ink)); color: var(--bg); border: 0;
+}
+.chip.install { background: var(--accent); color: var(--on-accent); font-family: var(--f-body); font-weight: 700; cursor: pointer; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+
+.wrap { padding-inline: 16px; padding-block: 16px 48px; max-width: 1180px; margin: 0 auto; }
+.notice { background: var(--sunk); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; font-size: .9rem; color: var(--muted); margin-bottom: 14px; }
+.grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+h2 { font-family: var(--f-head); font-size: 1.1rem; text-transform: uppercase; letter-spacing: .05em; margin: 0; text-wrap: balance; }
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.lbl { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+
+/* Voice */
+.voice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; background: var(--sunk); border-radius: var(--r); padding: 12px; }
+.mic {
+  width: 72px; height: 72px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent);
+  display: grid; place-items: center; box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 60%, #000);
+}
+.mic svg { width: 30px; height: 30px; }
+.mic[aria-pressed="true"] { background: var(--rec); color: #fff; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--rec) 25%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .mic[aria-pressed="true"] { animation: none; } }
+.voice-status { font-size: .9rem; color: var(--muted); }
+.voice-status b { color: var(--ink); }
+.quick { display: flex; gap: 8px; margin-top: 8px; }
+.quick textarea { flex: 1; min-width: 0; min-height: 44px; resize: vertical; }
+.parsed { font-size: .85rem; color: var(--muted); }
+.parsed b { color: var(--good); font-weight: 600; }
+
+/* Form */
+form { display: grid; gap: 14px; }
+.field { display: grid; gap: 6px; min-width: 0; }
+input[type="text"], input[type="number"], input[type="search"], select, textarea {
+  width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 10px 12px; min-height: 46px; font-size: 16px;
+}
+textarea { min-height: 84px; resize: vertical; }
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; padding: 0; margin: 0; }
+.seg legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.seg label { position: relative; text-align: center; padding: 11px 6px; font-weight: 600; font-size: .92rem; cursor: pointer; border-left: 1px solid var(--line); }
+.seg label:first-of-type { border-left: 0; }
+.seg input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.seg label:has(input:checked) { color: var(--surface); }
+.seg label[data-cat="control"]:has(input:checked) { background: var(--control); }
+.seg label[data-cat="sighting"]:has(input:checked) { background: var(--sight); }
+.seg label[data-cat="maintenance"]:has(input:checked) { background: var(--maint); }
+.seg label:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: -3px; }
+.sugg { display: flex; flex-wrap: wrap; gap: 6px; }
+.sugg button { border: 1px solid var(--line); background: var(--sunk); border-radius: 999px; padding: 6px 12px; font-size: .88rem; min-height: 36px; }
+.sugg button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.sci { font-style: italic; color: var(--muted); font-size: .85rem; min-height: 1.2em; }
+.row { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 420px) { .row { grid-template-columns: 1fr; } }
+.stepper { display: grid; grid-template-columns: 46px minmax(0, 1fr) 46px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stepper button { border: 0; background: var(--sunk); font-size: 1.4rem; font-weight: 600; }
+.stepper input { border: 0; border-radius: 0; text-align: center; font-family: var(--f-data); font-size: 1.15rem; font-variant-numeric: tabular-nums; min-width: 0; }
+.qty-unit { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
+.stepper input { -moz-appearance: textfield; appearance: textfield; padding-inline: 4px; }
+.stepper input::-webkit-inner-spin-button, .stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.loc { border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 10px; }
+.loc-read { font-family: var(--f-data); font-variant-numeric: tabular-nums; font-size: .95rem; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.loc-read .acc { font-weight: 700; }
+.acc.good { color: var(--good); } .acc.warn { color: var(--warn); } .acc.bad { color: var(--bad); }
+.loc-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--sunk); border-radius: 8px; padding: 8px 14px; min-height: 42px; font-weight: 600; font-size: .9rem; }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn.danger { color: var(--bad); }
+.btn.danger.armed { background: var(--bad); color: var(--surface); border-color: var(--bad); }
+.save { border: 0; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 1.05rem; border-radius: var(--r); min-height: 56px; letter-spacing: .02em; }
+.audio-draft { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.audio-draft audio { max-width: 100%; height: 40px; }
+
+/* Log */
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.filters button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 5px 12px; font-size: .85rem; min-height: 34px; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.plot-box { background: var(--sunk); border-radius: var(--r); padding: 8px; }
+.plot-box svg { display: block; width: 100%; height: auto; max-width: 100%; }
+.plot-box text { fill: var(--muted); font-family: var(--f-data); font-size: 9px; }
+.pt-control { fill: var(--control); } .pt-sighting { fill: var(--sight); } .pt-maintenance { fill: var(--maint); }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: .8rem; color: var(--muted); padding: 4px 4px 0; }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tally div { background: var(--sunk); border-radius: 8px; padding: 8px 10px; }
+.tally b { display: block; font-family: var(--f-data); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.tally span { font-size: .78rem; color: var(--muted); }
+
+.list { list-style: none; margin: 0; padding: 0; display: grid; }
+.list li { border-top: 1px solid var(--line); padding: 12px 0; display: grid; gap: 4px; }
+.list li:first-child { border-top: 0; }
+.ent-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.tag { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 2px 8px; border-radius: 4px; color: var(--surface); }
+.tag.control { background: var(--control); } .tag.sighting { background: var(--sight); } .tag.maintenance { background: var(--maint); }
+.tag.ex { background: transparent; color: var(--muted); border: 1px dashed var(--muted); }
+.ent-name { font-weight: 700; }
+.ent-qty { font-family: var(--f-data); font-variant-numeric: tabular-nums; }
+.ent-meta { font-family: var(--f-data); font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ent-cmt { font-size: .92rem; overflow-wrap: anywhere; }
+.ent-act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.ent-act .btn { min-height: 34px; padding: 4px 12px; font-size: .82rem; }
+.empty { color: var(--muted); font-size: .92rem; padding: 12px 0; }
+
+.export { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+.export-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.export .save { min-height: 48px; padding: 0 18px; font-size: 1rem; }
+.hint { font-size: .85rem; color: var(--muted); }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-weight: 700; }
+.settings { display: grid; gap: 12px; margin-top: 12px; }
+#csvOut { font-family: var(--f-data); font-size: .75rem; min-height: 120px; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 10px; font-weight: 600; max-width: calc(100% - 32px); z-index: 10; }
+</style>
+
+<header class="bar">
+  <div class="brand"><strong>Field Log</strong><span id="siteLabel">No site set</span></div>
+  <div class="chips">
+    <span class="chip" id="gpsChip"><span class="dot" id="gpsDot"></span><span id="gpsChipText">GPS starting</span></span>
+    <button type="button" class="chip install" id="installBtn" hidden>Install app</button>
+    <span class="chip" id="netChip"><span class="dot" id="netDot"></span><span id="netText">Checking</span></span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="notice" id="notice" hidden></div>
+  <main class="grid">
+    <section class="panel" aria-labelledby="entryH">
+      <div class="head-row">
+        <h2 id="entryH">New entry</h2>
+        <button type="button" class="btn" id="cancelEdit" hidden>Cancel edit</button>
+      </div>
+
+      <div class="voice">
+        <button type="button" class="mic" id="micBtn" aria-pressed="false" aria-label="Start voice log">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <div style="min-width:0">
+          <div class="voice-status" id="voiceStatus"><b>Tap to speak.</b> Say what, how many and how, e.g. “Shot three feral pigs at the north dam.”</div>
+          <div class="quick">
+            <textarea id="transcript" rows="2" placeholder="Transcript appears here. You can also type a note and tap Fill."></textarea>
+            <button type="button" class="btn" id="fillBtn">Fill</button>
+          </div>
+          <div class="parsed" id="parsed"></div>
+        </div>
+      </div>
+
+      <form id="form" novalidate>
+        <fieldset class="seg" id="catSeg">
+          <legend>Activity type</legend>
+          <label data-cat="control"><input type="radio" name="cat" id="cat-control" value="control" checked>Pest control</label>
+          <label data-cat="sighting"><input type="radio" name="cat" id="cat-sighting" value="sighting">Native sighting</label>
+          <label data-cat="maintenance"><input type="radio" name="cat" id="cat-maintenance" value="maintenance">Maintenance</label>
+        </fieldset>
+
+        <div class="field">
+          <label class="lbl" for="species" id="speciesLbl">Species</label>
+          <input type="search" id="species" autocomplete="off" placeholder="Search or type a species">
+          <div class="sci" id="sci"></div>
+          <div class="sugg" id="sugg"></div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <span class="lbl" id="qtyLbl">Quantity</span>
+            <div class="qty-unit">
+              <div class="stepper">
+                <button type="button" id="qtyDown" aria-label="Decrease quantity">−</button>
+                <input type="number" id="qty" inputmode="decimal" min="0" step="any" value="1" aria-labelledby="qtyLbl">
+                <button type="button" id="qtyUp" aria-label="Increase quantity">+</button>
+              </div>
+              <select id="unit" aria-label="Unit">
+                <option>head</option><option>individuals</option><option>m</option><option>km</option><option>ha</option><option>hours</option><option>items</option><option>plants</option><option>jobs</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label class="lbl" for="method" id="methodLbl">Method</label>
+            <select id="method"></select>
+          </div>
+        </div>
+
+        <div class="loc">
+          <div class="head-row">
+            <span class="lbl">Location · WGS84</span>
+            <div class="loc-btns">
+              <button type="button" class="btn" id="locGps" aria-pressed="true">Live GPS</button>
+              <button type="button" class="btn" id="locManual" aria-pressed="false">Enter manually</button>
+            </div>
+          </div>
+          <div class="loc-read" id="locRead">Waiting for GPS fix…</div>
+          <div class="row" id="manualRow" hidden>
+            <div class="field"><label class="lbl" for="mLat">Latitude</label><input type="text" id="mLat" inputmode="decimal" placeholder="-35.312845"></div>
+            <div class="field"><label class="lbl" for="mLon">Longitude</label><input type="text" id="mLon" inputmode="decimal" placeholder="148.904210"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="lbl" for="comment">Comments</label>
+          <textarea id="comment" placeholder="Condition, behaviour, sex/age, calibre, follow-up needed…"></textarea>
+        </div>
+
+        <div class="audio-draft" id="audioDraft" hidden></div>
+
+        <button type="submit" class="save" id="saveBtn">Save entry</button>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="logH">
+      <div class="head-row">
+        <h2 id="logH">Log</h2>
+        <div class="filters" id="filters">
+          <button type="button" data-f="all" aria-pressed="true">All</button>
+          <button type="button" data-f="today" aria-pressed="false">Today</button>
+          <button type="button" data-f="control" aria-pressed="false">Control</button>
+          <button type="button" data-f="sighting" aria-pressed="false">Sightings</button>
+          <button type="button" data-f="maintenance" aria-pressed="false">Maint.</button>
+        </div>
+      </div>
+
+      <div class="tally" id="tally"></div>
+
+      <div class="plot-box">
+        <svg id="plot" viewBox="0 0 320 170" role="img" aria-label="Plot of logged locations"></svg>
+        <div class="legend"><span><i style="background:var(--control)"></i>Control</span><span><i style="background:var(--sight)"></i>Sighting</span><span><i style="background:var(--maint)"></i>Maintenance</span><span><i style="border:2px solid var(--accent)"></i>You</span></div>
+      </div>
+
+      <div class="notice" id="exNotice" hidden>
+        These are example entries so you can see the layout. They are never exported.
+        <button type="button" class="btn" id="clearEx" style="margin-top:8px">Remove examples</button>
+      </div>
+
+      <ul class="list" id="list"></ul>
+
+      <div class="export">
+        <span class="lbl">Export</span>
+        <div class="hint" id="exportHint"></div>
+        <div class="export-btns">
+          <button type="button" class="save" id="exportBtn">Export CSV</button>
+          <button type="button" class="btn" id="copyBtn">Copy CSV</button>
+        </div>
+        <textarea id="csvOut" readonly hidden aria-label="CSV text"></textarea>
+      </div>
+
+      <details>
+        <summary>Observer, site and species list</summary>
+        <div class="settings">
+          <div class="row">
+            <div class="field"><label class="lbl" for="observer">Observer</label><input type="text" id="observer" placeholder="Your name"></div>
+            <div class="field"><label class="lbl" for="site">Property / site</label><input type="text" id="site" placeholder="e.g. Boorowa Creek Reserve"></div>
+          </div>
+          <div class="field">
+            <span class="lbl">Add a species or task</span>
+            <div class="row">
+              <input type="text" id="newName" placeholder="Common name" aria-label="Common name">
+              <input type="text" id="newSci" placeholder="Scientific name (optional)" aria-label="Scientific name">
+            </div>
+            <div class="loc-btns">
+              <select id="newCat" aria-label="Category" style="max-width:220px">
+                <option value="control">Pest control</option><option value="sighting">Native sighting</option><option value="maintenance">Maintenance</option>
+              </select>
+              <button type="button" class="btn" id="addSp">Add to list</button>
+            </div>
+            <div class="hint" id="customList"></div>
+          </div>
+          <div class="hint" id="storageHint"></div>
+        </div>
+      </details>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+
+/* ---------- Reference data ---------- */
+const CATS = {
+  control:     { label: "Pest control",    spLabel: "Species", methodLabel: "Method",
+                 methods: ["Shot – ground", "Shot – aerial", "Trapped", "Trapped & euthanised", "Baited", "Observed only"], unit: "head" },
+  sighting:    { label: "Native sighting", spLabel: "Species", methodLabel: "Detection",
+                 methods: ["Seen", "Heard", "Tracks or scats", "Camera trap", "Found dead"], unit: "individuals" },
+  maintenance: { label: "Maintenance",     spLabel: "Task", methodLabel: "Status",
+                 methods: ["Completed", "Partly done", "Needs follow-up"], unit: "jobs" }
+};
+const BASE_SPECIES = [
+  // Pest and feral animals
+  { n: "Feral pig", s: "Sus scrofa", c: "control", a: ["pig", "boar", "sow", "piglet", "hog", "wild pig"] },
+  { n: "Feral cat", s: "Felis catus", c: "control", a: ["cat", "moggy"] },
+  { n: "Red fox", s: "Vulpes vulpes", c: "control", a: ["fox", "vixen"] },
+  { n: "Wild dog", s: "Canis familiaris", c: "control", a: ["dog", "dingo", "wild dog"] },
+  { n: "European rabbit", s: "Oryctolagus cuniculus", c: "control", a: ["rabbit", "bunny", "kitten rabbit"] },
+  { n: "European hare", s: "Lepus europaeus", c: "control", a: ["hare"] },
+  { n: "Feral goat", s: "Capra hircus", c: "control", a: ["goat", "billy", "nanny"] },
+  { n: "Fallow deer", s: "Dama dama", c: "control", a: ["fallow", "deer"] },
+  { n: "Sambar deer", s: "Rusa unicolor", c: "control", a: ["sambar"] },
+  { n: "Feral horse", s: "Equus caballus", c: "control", a: ["brumby", "horse"] },
+  { n: "Cane toad", s: "Rhinella marina", c: "control", a: ["toad"] },
+  { n: "Black rat", s: "Rattus rattus", c: "control", a: ["rat"] },
+  { n: "Common myna", s: "Acridotheres tristis", c: "control", a: ["myna", "mynah", "indian myna"] },
+  // Native species
+  { n: "Koala", s: "Phascolarctos cinereus", c: "sighting", a: [] },
+  { n: "Eastern grey kangaroo", s: "Macropus giganteus", c: "sighting", a: ["kangaroo", "roo", "grey kangaroo"] },
+  { n: "Red-necked wallaby", s: "Notamacropus rufogriseus", c: "sighting", a: ["wallaby", "red necked wallaby"] },
+  { n: "Swamp wallaby", s: "Wallabia bicolor", c: "sighting", a: ["black wallaby"] },
+  { n: "Brush-tailed rock-wallaby", s: "Petrogale penicillata", c: "sighting", a: ["rock wallaby", "brush tailed rock wallaby"] },
+  { n: "Short-beaked echidna", s: "Tachyglossus aculeatus", c: "sighting", a: ["echidna"] },
+  { n: "Platypus", s: "Ornithorhynchus anatinus", c: "sighting", a: [] },
+  { n: "Common wombat", s: "Vombatus ursinus", c: "sighting", a: ["wombat"] },
+  { n: "Spotted-tailed quoll", s: "Dasyurus maculatus", c: "sighting", a: ["quoll", "tiger quoll", "spotted tailed quoll"] },
+  { n: "Long-nosed potoroo", s: "Potorous tridactylus", c: "sighting", a: ["potoroo"] },
+  { n: "Southern brown bandicoot", s: "Isoodon obesulus", c: "sighting", a: ["bandicoot"] },
+  { n: "Greater glider", s: "Petauroides volans", c: "sighting", a: ["glider"] },
+  { n: "Glossy black-cockatoo", s: "Calyptorhynchus lathami", c: "sighting", a: ["glossy black", "glossy", "black cockatoo"] },
+  { n: "Powerful owl", s: "Ninox strenua", c: "sighting", a: ["owl"] },
+  { n: "Superb lyrebird", s: "Menura novaehollandiae", c: "sighting", a: ["lyrebird"] },
+  { n: "Regent honeyeater", s: "Anthochaera phrygia", c: "sighting", a: ["honeyeater", "regent"] },
+  { n: "Malleefowl", s: "Leipoa ocellata", c: "sighting", a: ["mallee fowl"] },
+  { n: "Lace monitor", s: "Varanus varius", c: "sighting", a: ["goanna", "monitor"] },
+  { n: "Green and golden bell frog", s: "Ranoidea aurea", c: "sighting", a: ["bell frog", "golden bell frog"] },
+  // Maintenance tasks
+  { n: "Fence repair", s: "", c: "maintenance", u: "m", a: ["fence", "fencing", "fence line"] },
+  { n: "Weed control", s: "", c: "maintenance", u: "ha", a: ["weed", "weeds", "spraying", "blackberry", "serrated tussock"] },
+  { n: "Trap check", s: "", c: "maintenance", u: "items", a: ["trap check", "checked traps", "traps"] },
+  { n: "Bait station service", s: "", c: "maintenance", u: "items", a: ["bait station", "baits"] },
+  { n: "Camera trap service", s: "", c: "maintenance", u: "items", a: ["camera", "camera trap", "sd card", "batteries"] },
+  { n: "Water point check", s: "", c: "maintenance", u: "items", a: ["water point", "trough", "dam", "tank"] },
+  { n: "Track maintenance", s: "", c: "maintenance", u: "km", a: ["track", "road", "grading", "graded"] },
+  { n: "Gate or signage", s: "", c: "maintenance", u: "items", a: ["gate", "sign", "signage"] },
+  { n: "Erosion control", s: "", c: "maintenance", u: "m", a: ["erosion", "gully"] },
+  { n: "Fire break", s: "", c: "maintenance", u: "km", a: ["firebreak", "fire trail"] },
+  { n: "Nest box check", s: "", c: "maintenance", u: "items", a: ["nest box", "nest boxes"] },
+  { n: "Revegetation planting", s: "", c: "maintenance", u: "plants", a: ["planting", "planted", "tube stock", "seedlings"] }
+];
+let customSpecies = [];
+const allSpecies = () => BASE_SPECIES.concat(customSpecies);
+const findSpecies = (name) => allSpecies().find((x) => x.n.toLowerCase() === String(name || "").trim().toLowerCase());
+
+/* ---------- Storage: IndexedDB on the device, memory if blocked ---------- */
+const store = (() => {
+  let db = null; const mem = { entries: new Map(), meta: new Map() };
+  const open = () => new Promise((res) => {
+    try {
+      const r = indexedDB.open("ranger-field-log", 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore("entries", { keyPath: "id" }); r.result.createObjectStore("meta"); };
+      r.onsuccess = () => { db = r.result; res(true); };
+      r.onerror = () => res(false);
+      r.onblocked = () => res(false);
+    } catch (e) { res(false); }
+  });
+  const req = (name, mode, fn) => new Promise((res, rej) => {
+    const t = db.transaction(name, mode); const q = fn(t.objectStore(name));
+    t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  });
+  return {
+    open, get persistent() { return !!db; },
+    async all() { if (!db) return [...mem.entries.values()]; return req("entries", "readonly", (s) => s.getAll()); },
+    async put(e) { if (!db) { mem.entries.set(e.id, e); return; } return req("entries", "readwrite", (s) => s.put(e)); },
+    async del(id) { if (!db) { mem.entries.delete(id); return; } return req("entries", "readwrite", (s) => s.delete(id)); },
+    async getMeta(k) { if (!db) return mem.meta.get(k); return req("meta", "readonly", (s) => s.get(k)); },
+    async setMeta(k, v) { if (!db) { mem.meta.set(k, v); return; } return req("meta", "readwrite", (s) => s.put(v, k)); }
+  };
+})();
+
+/* ---------- State ---------- */
+let entries = [];
+let editingId = null;
+let filter = "all";
+let fix = null, gpsErr = null;
+let locMode = "gps";
+let editLoc = null;            // original location kept while editing
+let draftAudio = null, draftTranscript = "";
+let observer = "", site = "", lastExportAt = 0;
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const cat = () => document.querySelector('input[name="cat"]:checked').value;
+const setCat = (c) => { const el = document.getElementById("cat-" + c); if (el) { el.checked = true; onCatChange(); } };
+const fmt6 = (n) => (n == null || isNaN(n)) ? "" : Number(n).toFixed(6);
+const pad = (n) => String(n).padStart(2, "0");
+const dateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const timeStr = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const accClass = (a) => a == null ? "" : a <= 10 ? "good" : a <= 30 ? "warn" : "bad";
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, 2600);
+}
+function notice(msg) { const n = $("#notice"); if (!msg) { n.hidden = true; return; } n.innerHTML = msg; n.hidden = false; }
+
+/* ---------- Category / species UI ---------- */
+function onCatChange() {
+  const c = CATS[cat()];
+  $("#speciesLbl").textContent = c.spLabel;
+  $("#methodLbl").textContent = c.methodLabel;
+  $("#species").placeholder = cat() === "maintenance" ? "Search or type a task" : "Search or type a species";
+  const m = $("#method"); const prev = m.value;
+  m.innerHTML = c.methods.map((x) => `<option>${esc(x)}</option>`).join("");
+  if (c.methods.includes(prev)) m.value = prev;
+  const sp = findSpecies($("#species").value);
+  if (sp && sp.c !== cat()) { $("#species").value = ""; }
+  syncUnitFromSpecies();
+  renderSugg();
+}
+function syncUnitFromSpecies() {
+  const sp = findSpecies($("#species").value);
+  $("#sci").textContent = sp && sp.s ? sp.s : "";
+  $("#unit").value = (sp && sp.u) || CATS[cat()].unit;
+}
+function recentNames(c) {
+  const seen = new Set(); const out = [];
+  for (const e of entries) { if (e.cat === c && !seen.has(e.sp)) { seen.add(e.sp); out.push(e.sp); } if (out.length >= 4) break; }
+  return out;
+}
+function renderSugg() {
+  const q = $("#species").value.trim().toLowerCase();
+  const c = cat();
+  let list;
+  if (!q) {
+    const rec = recentNames(c);
+    const rest = allSpecies().filter((s) => s.c === c && !rec.includes(s.n)).map((s) => s.n);
+    list = rec.concat(rest).slice(0, 10);
+  } else {
+    list = allSpecies()
+      .filter((s) => s.c === c && (s.n.toLowerCase().includes(q) || s.s.toLowerCase().includes(q) || s.a.some((a) => a.includes(q))))
+      .map((s) => s.n).slice(0, 10);
+  }
+  const cur = $("#species").value.trim().toLowerCase();
+  $("#sugg").innerHTML = list.map((n) => `<button type="button" data-n="${esc(n)}" aria-pressed="${n.toLowerCase() === cur}">${esc(n)}</button>`).join("");
+}
+$("#sugg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  $("#species").value = b.dataset.n; syncUnitFromSpecies(); renderSugg();
+});
+$("#species").addEventListener("input", () => { syncUnitFromSpecies(); renderSugg(); });
+$("#catSeg").addEventListener("change", onCatChange);
+$("#qtyUp").addEventListener("click", () => { const q = $("#qty"); q.value = Math.max(0, (parseFloat(q.value) || 0) + 1); });
+$("#qtyDown").addEventListener("click", () => { const q = $("#qty"); q.value = Math.max(0, (parseFloat(q.value) || 0) - 1); });
+
+/* ---------- GPS ---------- */
+function startGps() {
+  if (!("geolocation" in navigator)) { gpsErr = { code: 0 }; renderGps(); return; }
+  try {
+    navigator.geolocation.watchPosition(
+      (p) => { fix = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, alt: p.coords.altitude, t: p.timestamp }; gpsErr = null; renderGps(); renderPlot(); },
+      (e) => { gpsErr = e; renderGps(); },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 60000 }
+    );
+  } catch (e) { gpsErr = { code: 1 }; renderGps(); }
+}
+function fixAge() { return fix ? Math.max(0, Math.round((Date.now() - fix.t) / 1000)) : null; }
+function renderGps() {
+  const dot = $("#gpsDot"), txt = $("#gpsChipText");
+  if (fix) {
+    const a = Math.round(fix.acc); const age = fixAge();
+    dot.className = "dot " + accClass(fix.acc);
+    txt.textContent = `±${a} m` + (age > 30 ? ` · ${age}s old` : "");
+  } else if (gpsErr && gpsErr.code === 1) { dot.className = "dot bad"; txt.textContent = "GPS blocked"; }
+  else if (gpsErr && gpsErr.code === 0) { dot.className = "dot bad"; txt.textContent = "No GPS"; }
+  else { dot.className = "dot warn"; txt.textContent = "Finding GPS"; }
+  renderLocRead();
+}
+function renderLocRead() {
+  const el = $("#locRead");
+  if (locMode === "manual") {
+    el.innerHTML = editLoc && editLoc.lat != null && $("#mLat").value === fmt6(editLoc.lat)
+      ? `Keeping this entry’s original location (${esc(editLoc.src)}).`
+      : "Type coordinates in decimal degrees. South is negative.";
+    return;
+  }
+  if (fix) {
+    const age = fixAge();
+    el.innerHTML = `<span>${fmt6(fix.lat)}, ${fmt6(fix.lon)}</span><span class="acc ${accClass(fix.acc)}">±${Math.round(fix.acc)} m</span>` +
+      (fix.alt != null ? `<span>${Math.round(fix.alt)} m alt</span>` : "") + `<span>${age < 5 ? "live" : age + "s ago"}</span>`;
+  } else if (gpsErr && (gpsErr.code === 1 || gpsErr.code === 0)) {
+    el.innerHTML = "Location isn’t available here. Use <b>Enter manually</b>, or open the offline copy on your phone and allow location.";
+  } else {
+    el.textContent = "Waiting for a GPS fix… Stand clear of trees and buildings for a faster lock.";
+  }
+}
+function setLocMode(m) {
+  locMode = m;
+  $("#locGps").setAttribute("aria-pressed", m === "gps");
+  $("#locManual").setAttribute("aria-pressed", m === "manual");
+  $("#manualRow").hidden = m !== "manual";
+  if (m === "manual" && !$("#mLat").value && fix) { $("#mLat").value = fmt6(fix.lat); $("#mLon").value = fmt6(fix.lon); }
+  if (m === "gps") editLoc = null;
+  renderLocRead();
+}
+$("#locGps").addEventListener("click", () => setLocMode("gps"));
+$("#locManual").addEventListener("click", () => setLocMode("manual"));
+["#mLat", "#mLon"].forEach((s) => $(s).addEventListener("input", renderLocRead));
+setInterval(() => { if (fix) renderGps(); }, 5000);
+
+function currentLocation() {
+  if (locMode === "manual") {
+    const lat = parseFloat($("#mLat").value), lon = parseFloat($("#mLon").value);
+    if (isNaN(lat) || isNaN(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return { bad: true };
+    if (editLoc && fmt6(editLoc.lat) === fmt6(lat) && fmt6(editLoc.lon) === fmt6(lon)) return { ...editLoc };
+    return { lat, lon, acc: null, alt: null, src: "manual" };
+  }
+  if (fix) return { lat: fix.lat, lon: fix.lon, acc: fix.acc, alt: fix.alt, src: "gps" };
+  return { lat: null, lon: null, acc: null, alt: null, src: "none" };
+}
+
+/* ---------- Network ---------- */
+function renderNet() {
+  const on = navigator.onLine;
+  $("#netDot").className = "dot " + (on ? "good" : "warn");
+  $("#netText").textContent = on ? "Online" : "Offline · saving on device";
+}
+window.addEventListener("online", renderNet); window.addEventListener("offline", renderNet);
+
+/* ---------- Voice parsing ---------- */
+const NUMS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30,
+  forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, dozen: 12, pair: 2, couple: 2, single: 1, lone: 1 };
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function parseUtterance(text) {
+  const low = " " + text.toLowerCase().replace(/[-–]/g, " ").replace(/[^\w\s.]/g, " ") + " ";
+  const out = {};
+  // Species: longest name or alias wins, plurals allowed
+  let best = null, bestLen = 0, bestIdx = -1;
+  for (const sp of allSpecies()) {
+    for (const name of [sp.n].concat(sp.a)) {
+      const key = name.toLowerCase().replace(/[-–]/g, " ");
+      const m = new RegExp("\\b" + reEsc(key) + "(?:s|es)?\\b").exec(low);
+      if (m && key.length > bestLen) { best = sp; bestLen = key.length; bestIdx = m.index; }
+    }
+  }
+  if (best) out.species = best;
+  // Activity type from verbs
+  const isControl = /\b(shot|shoot|culled?|killed|destroyed|trapped|baited|euthani[sz]ed|dispatched|removed)\b/.test(low);
+  const isMaint = /\b(fixed|repaired|replaced|checked|serviced|sprayed|cleared|graded|installed|refilled|planted|maintained|maintenance|strained|patched)\b/.test(low);
+  const isSight = /\b(saw|seen|sighted|sighting|spotted|heard|observed|tracks?|scats?|prints|diggings|camera)\b/.test(low);
+  if (best) out.cat = best.c;
+  else if (isControl) out.cat = "control";
+  else if (isMaint) out.cat = "maintenance";
+  else if (isSight) out.cat = "sighting";
+  // Method / detection / status
+  const c = out.cat;
+  if (c === "control") {
+    if (/\baerial|helicopter|chopper\b/.test(low)) out.method = "Shot – aerial";
+    else if (/\b(shot|shoot|culled?)\b/.test(low)) out.method = "Shot – ground";
+    else if (/\btrapped\b/.test(low) && /\b(euthani[sz]ed|dispatched|destroyed|killed)\b/.test(low)) out.method = "Trapped & euthanised";
+    else if (/\btrap(ped)?\b/.test(low)) out.method = "Trapped";
+    else if (/\bbait(ed)?\b/.test(low)) out.method = "Baited";
+    else if (isSight) out.method = "Observed only";
+  } else if (c === "sighting") {
+    if (/\bcamera\b/.test(low)) out.method = "Camera trap";
+    else if (/\b(dead|roadkill|carcass)\b/.test(low)) out.method = "Found dead";
+    else if (/\bheard|calling|call\b/.test(low)) out.method = "Heard";
+    else if (/\b(tracks?|scats?|prints|diggings|droppings)\b/.test(low)) out.method = "Tracks or scats";
+    else if (isSight) out.method = "Seen";
+  } else if (c === "maintenance") {
+    if (/\b(follow up|needs|still need|come back)\b/.test(low)) out.method = "Needs follow-up";
+    else if (/\b(partly|partially|half|started)\b/.test(low)) out.method = "Partly done";
+    else out.method = "Completed";
+  }
+  // Quantity (+ unit for maintenance)
+  const unitRe = /\b(\d+(?:\.\d+)?)\s*(metres?|meters?|m|kilometres?|kilometers?|km|k|hectares?|ha|hours?|hrs?)\b/;
+  const um = unitRe.exec(low);
+  if (um) {
+    out.qty = parseFloat(um[1]);
+    const u = um[2];
+    out.unit = /^(m|metre|meter)/.test(u) ? "m" : /^(k|km|kilo)/.test(u) ? "km" : /^h(a|ectare)/.test(u) ? "ha" : "hours";
+  } else {
+    // Candidate counts: digits or number words, skipping calibres like ".223", "308 win", "12 gauge"
+    const cands = []; const re = /(^|[^.\w])(\d+(?:\.\d+)?|[a-z]+)(?=\s|$)/g; let m;
+    while ((m = re.exec(low))) {
+      const tok = m[2], idx = m.index + m[1].length;
+      const after = low.slice(idx + tok.length, idx + tok.length + 12);
+      if (/^\s*(cal|calibre|caliber|gauge|ga|win|mag|magnum|rem|mm|rifle)\b/.test(after)) continue;
+      let v = /^\d/.test(tok) ? parseFloat(tok) : NUMS[tok];
+      if (v == null) continue;
+      const nxt = /^\s+([a-z]+)/.exec(after);
+      if (v >= 20 && v < 100 && nxt && NUMS[nxt[1]] != null && NUMS[nxt[1]] < 10) { v += NUMS[nxt[1]]; re.lastIndex = idx + tok.length + nxt[0].length; }
+      cands.push({ v, idx });
+    }
+    const before = bestIdx >= 0 ? cands.filter((c) => c.idx < bestIdx) : [];
+    const pick = before.length ? before[before.length - 1] : cands[0];
+    if (pick) out.qty = pick.v;
+    else if (best) out.qty = 1;
+  }
+  return out;
+}
+function applyParse(text) {
+  const t = text.trim(); if (!t) return;
+  const p = parseUtterance(t);
+  const filled = [];
+  if (p.cat) { setCat(p.cat); filled.push(CATS[p.cat].label); }
+  if (p.species) { $("#species").value = p.species.n; syncUnitFromSpecies(); filled.push(p.species.n); }
+  if (p.method) { $("#method").value = p.method; filled.push(p.method); }
+  if (p.qty != null) { $("#qty").value = p.qty; filled.push("qty " + p.qty); }
+  if (p.unit) { $("#unit").value = p.unit; }
+  const cm = $("#comment");
+  if (!cm.value.includes(t)) cm.value = cm.value ? cm.value + "\n" + t : t;
+  draftTranscript = t;
+  renderSugg();
+  $("#parsed").innerHTML = filled.length
+    ? "Filled: <b>" + filled.map(esc).join(" · ") + "</b>. Check before saving."
+    : "Couldn’t pick out a species or task. The note was added to comments.";
+}
+$("#fillBtn").addEventListener("click", () => applyParse($("#transcript").value));
+
+/* ---------- Voice capture: audio memo always, live transcript when the device can ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let mediaRec = null, recog = null, recording = false, chunks = [], srText = "", srEnded = null, srLocal = false;
+function voiceIdleText() {
+  const base = "<b>Tap to speak.</b> Say what, how many and how, e.g. “Shot three feral pigs at the north dam.” ";
+  if (!SR) return base + "This browser can’t transcribe, so your voice is saved as an audio memo.";
+  return base + "Your voice is always kept as an audio memo. With no signal, phones that support on-device speech still transcribe.";
+}
+async function startVoice() {
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) {
+    $("#voiceStatus").innerHTML = "<b>Microphone not available here.</b> Allow microphone access, or type a note in the box below and tap Fill.";
+    return;
+  }
+  recording = true; chunks = []; srText = "";
+  $("#micBtn").setAttribute("aria-pressed", "true"); $("#micBtn").setAttribute("aria-label", "Stop voice log");
+  try {
+    mediaRec = new MediaRecorder(stream);
+    mediaRec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+    mediaRec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      if (chunks.length) { draftAudio = new Blob(chunks, { type: mediaRec.mimeType || "audio/webm" }); renderAudioDraft(); }
+    };
+    mediaRec.start();
+  } catch (e) { mediaRec = null; }
+  srLocal = !navigator.onLine;   // offline: ask for on-device speech; the memo still records if it isn't there
+  if (SR) {
+    startRecog();
+    $("#voiceStatus").innerHTML = "<b>Listening…</b> Tap again when you’re done.";
+  } else {
+    $("#voiceStatus").innerHTML = "<b>Recording voice memo…</b> This browser can’t transcribe. Tap again to stop.";
+  }
+}
+function startRecog() {
+  let base = srText;
+  recog = new SR();
+  recog.lang = "en-AU"; recog.continuous = true; recog.interimResults = true;
+  if (srLocal) { try { recog.processLocally = true; } catch (e) {} }
+  recog.onresult = (ev) => {
+    let fin = "", interim = "";
+    for (let i = 0; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) fin += r[0].transcript + " "; else interim += r[0].transcript;
+    }
+    srText = (base + " " + fin).replace(/\s+/g, " ").trim();
+    $("#transcript").value = (srText + " " + interim).trim();
+  };
+  recog.onerror = (ev) => {
+    if (["network", "language-not-supported", "service-not-allowed"].includes(ev.error)) recording && (recog.dead = true);
+    if (ev.error === "network" || ev.error === "language-not-supported" || ev.error === "service-not-allowed") $("#voiceStatus").innerHTML = "<b>Recording voice memo…</b> Transcription needs signal on this phone. Tap again to stop.";
+    else if (ev.error === "not-allowed") $("#voiceStatus").innerHTML = "<b>Recording voice memo…</b> Speech-to-text was refused. Tap again to stop.";
+  };
+  recog.onend = () => {
+    if (recording && !recog.dead) { try { startRecog(); } catch (e) {} return; }   // browser stopped on silence: keep going
+    recog = null; if (srEnded) { srEnded(); srEnded = null; }
+  };
+  try { recog.start(); } catch (e) { recog = null; }
+}
+async function stopVoice() {
+  recording = false;
+  $("#micBtn").setAttribute("aria-pressed", "false"); $("#micBtn").setAttribute("aria-label", "Start voice log");
+  if (mediaRec && mediaRec.state !== "inactive") mediaRec.stop();
+  if (recog) {
+    await new Promise((res) => { srEnded = res; try { recog.stop(); } catch (e) { res(); } setTimeout(res, 2000); });
+  }
+  const text = $("#transcript").value.trim();
+  $("#voiceStatus").innerHTML = voiceIdleText();
+  if (text) applyParse(text);
+  else $("#parsed").textContent = "Voice memo attached. Fill in the fields, then save.";
+}
+$("#micBtn").addEventListener("click", () => { recording ? stopVoice() : startVoice(); });
+
+function renderAudioDraft() {
+  const box = $("#audioDraft");
+  if (!draftAudio) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  box.innerHTML = `<span class="lbl">Voice memo</span><audio controls src="${URL.createObjectURL(draftAudio)}"></audio><button type="button" class="btn" id="dropAudio">Remove</button>`;
+  $("#dropAudio").addEventListener("click", () => { draftAudio = null; renderAudioDraft(); });
+}
+
+/* ---------- Save / edit ---------- */
+function resetForm() {
+  editingId = null; editLoc = null;
+  $("#entryH").textContent = "New entry"; $("#saveBtn").textContent = "Save entry"; $("#cancelEdit").hidden = true;
+  $("#species").value = ""; $("#qty").value = 1; $("#comment").value = ""; $("#transcript").value = ""; $("#parsed").textContent = "";
+  $("#mLat").value = ""; $("#mLon").value = "";
+  draftAudio = null; draftTranscript = ""; renderAudioDraft();
+  setLocMode("gps"); syncUnitFromSpecies(); renderSugg();
+}
+$("#cancelEdit").addEventListener("click", resetForm);
+
+$("#form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const spName = $("#species").value.trim();
+  if (!spName) { toast(cat() === "maintenance" ? "Pick or type a task first." : "Pick or type a species first."); $("#species").focus(); return; }
+  const qty = parseFloat($("#qty").value);
+  if (isNaN(qty) || qty < 0) { toast("Quantity must be 0 or more."); $("#qty").focus(); return; }
+  const loc = currentLocation();
+  if (loc.bad) { toast("Check the coordinates: decimal degrees, e.g. -35.312845"); $("#mLat").focus(); return; }
+  const sp = findSpecies(spName);
+  const prev = editingId ? entries.find((e) => e.id === editingId) : null;
+  const e = {
+    id: prev ? prev.id : uid(),
+    ts: prev ? prev.ts : Date.now(),
+    edited: prev ? Date.now() : null,
+    cat: cat(), sp: sp ? sp.n : spName, sci: sp ? sp.s : "",
+    qty, unit: $("#unit").value, method: $("#method").value,
+    lat: loc.lat, lon: loc.lon, acc: loc.acc, alt: loc.alt, src: loc.src,
+    comment: $("#comment").value.trim(),
+    transcript: draftTranscript || (prev ? prev.transcript : ""),
+    audio: draftAudio || (prev ? prev.audio : null),
+    observer, site, example: false
+  };
+  try { await store.put(e); }
+  catch (err) { toast("Couldn’t save on this device. Copy your notes before closing."); return; }
+  entries = entries.filter((x) => x.id !== e.id).concat(e).sort((a, b) => b.ts - a.ts);
+  toast(`${prev ? "Updated" : "Saved"} · ${e.sp} ×${e.qty}` + (e.src === "gps" ? ` · ±${Math.round(e.acc)} m` : e.src === "none" ? " · no location" : ""));
+  resetForm(); renderLog();
+});
+
+function startEdit(id) {
+  const e = entries.find((x) => x.id === id); if (!e) return;
+  editingId = id;
+  setCat(e.cat);
+  $("#species").value = e.sp; syncUnitFromSpecies(); $("#unit").value = e.unit;
+  $("#qty").value = e.qty; $("#method").value = e.method; $("#comment").value = e.comment || "";
+  $("#transcript").value = e.transcript || ""; draftTranscript = e.transcript || "";
+  draftAudio = null; renderAudioDraft();
+  if (e.lat != null) { editLoc = { lat: e.lat, lon: e.lon, acc: e.acc, alt: e.alt, src: e.src }; $("#mLat").value = fmt6(e.lat); $("#mLon").value = fmt6(e.lon); setLocMode("manual"); }
+  else { setLocMode("gps"); }
+  $("#entryH").textContent = "Edit entry"; $("#saveBtn").textContent = "Save changes"; $("#cancelEdit").hidden = false;
+  renderSugg();
+  $("#entryH").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ---------- Log rendering ---------- */
+function visible() {
+  const today = dateStr(new Date());
+  return entries.filter((e) =>
+    filter === "all" ? true :
+    filter === "today" ? dateStr(new Date(e.ts)) === today :
+    e.cat === filter);
+}
+function renderLog() {
+  const v = visible();
+  const real = entries.filter((e) => !e.example);
+  $("#exNotice").hidden = !entries.some((e) => e.example);
+  // tally
+  const sum = (c) => v.filter((e) => e.cat === c).reduce((a, e) => a + (c === "maintenance" ? 1 : (+e.qty || 0)), 0);
+  $("#tally").innerHTML =
+    `<div><b>${sum("control")}</b><span>animals controlled</span></div>` +
+    `<div><b>${sum("sighting")}</b><span>natives recorded</span></div>` +
+    `<div><b>${sum("maintenance")}</b><span>maintenance jobs</span></div>`;
+  // list
+  const list = $("#list");
+  if (!v.length) { list.innerHTML = `<li class="empty">Nothing logged ${filter === "today" ? "today" : "in this view"} yet. Use the form to add the first entry.</li>`; }
+  else {
+    list.innerHTML = v.map((e) => {
+      const d = new Date(e.ts);
+      const loc = e.lat != null ? `${fmt6(e.lat)}, ${fmt6(e.lon)}` + (e.acc != null ? ` ±${Math.round(e.acc)} m` : " (manual)") : "no location";
+      return `<li data-id="${e.id}">
+        <div class="ent-top">
+          <span class="tag ${e.cat}">${esc(CATS[e.cat].label)}</span>
+          ${e.example ? '<span class="tag ex">Example</span>' : ""}
+          <span class="ent-name">${esc(e.sp)}</span>
+          <span class="ent-qty">${esc(e.qty)} ${esc(e.unit)}</span>
+          <span class="ent-meta">· ${esc(e.method)}</span>
+        </div>
+        ${e.sci ? `<div class="sci">${esc(e.sci)}</div>` : ""}
+        <div class="ent-meta">${dateStr(d)} ${timeStr(d)} · ${loc}${e.observer ? " · " + esc(e.observer) : ""}</div>
+        ${e.comment ? `<div class="ent-cmt">${esc(e.comment)}</div>` : ""}
+        <div class="ent-act">
+          ${e.audio ? `<button type="button" class="btn" data-act="play">Play memo</button>` : ""}
+          <button type="button" class="btn" data-act="edit">Edit</button>
+          <button type="button" class="btn danger" data-act="del">Delete</button>
+        </div>
+        <div class="play-slot"></div>
+      </li>`;
+    }).join("");
+  }
+  const pending = real.filter((e) => (e.edited || e.ts) > lastExportAt).length;
+  $("#exportHint").textContent = !real.length ? "Your entries will export as one CSV row each, with coordinates, accuracy and comments."
+    : pending ? `${real.length} entries on this device · ${pending} new or changed since the last export.`
+    : `${real.length} entries on this device · all exported.`;
+  renderPlot();
+}
+$("#list").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button[data-act]"); if (!b) return;
+  const li = b.closest("li"); const id = li.dataset.id; const e = entries.find((x) => x.id === id);
+  if (b.dataset.act === "edit") startEdit(id);
+  if (b.dataset.act === "play" && e && e.audio) {
+    li.querySelector(".play-slot").innerHTML = `<audio controls autoplay src="${URL.createObjectURL(e.audio)}" style="max-width:100%"></audio>`;
+  }
+  if (b.dataset.act === "del") {
+    if (!b.classList.contains("armed")) {
+      b.classList.add("armed"); b.textContent = "Tap again to delete";
+      setTimeout(() => { if (b.isConnected) { b.classList.remove("armed"); b.textContent = "Delete"; } }, 4000);
+      return;
+    }
+    await store.del(id).catch(() => {});
+    entries = entries.filter((x) => x.id !== id);
+    if (editingId === id) resetForm();
+    renderLog(); toast("Entry deleted");
+  }
+});
+$("#filters").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-f]"); if (!b) return;
+  filter = b.dataset.f;
+  document.querySelectorAll("#filters button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  renderLog();
+});
+
+/* ---------- Location plot (no basemap, so it works offline) ---------- */
+function renderPlot() {
+  const svg = $("#plot"); const W = 320, H = 170, P = 18;
+  const pts = visible().filter((e) => e.lat != null);
+  const all = pts.map((e) => [e.lat, e.lon]); if (fix) all.push([fix.lat, fix.lon]);
+  if (!all.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">Logged locations appear here</text>`; return; }
+  const lat0 = all.reduce((a, p) => a + p[0], 0) / all.length;
+  const kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110540;
+  const xy = (lat, lon) => [lon * kx, lat * ky];
+  const P2 = all.map((p) => xy(p[0], p[1]));
+  let minX = Math.min(...P2.map((p) => p[0])), maxX = Math.max(...P2.map((p) => p[0]));
+  let minY = Math.min(...P2.map((p) => p[1])), maxY = Math.max(...P2.map((p) => p[1]));
+  const span = Math.max(maxX - minX, (maxY - minY) * (W - 2 * P) / (H - 2 * P), 200);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const s = (W - 2 * P) / span;
+  const toS = (x, y) => [W / 2 + (x - cx) * s, H / 2 - (y - cy) * s];
+  // scale bar: a round distance near a quarter of the width
+  const target = span / 4; const pow = Math.pow(10, Math.floor(Math.log10(target)));
+  const nice = [1, 2, 5, 10].map((m) => m * pow).filter((d) => d <= target).pop() || pow;
+  const barW = nice * s; const lab = nice >= 1000 ? (nice / 1000) + " km" : nice + " m";
+  let g = "";
+  for (let i = 1; i < 4; i++) g += `<line x1="${(W * i / 4).toFixed(1)}" y1="0" x2="${(W * i / 4).toFixed(1)}" y2="${H}" stroke="var(--line)" stroke-width="0.5"/>`;
+  for (let i = 1; i < 3; i++) g += `<line x1="0" y1="${(H * i / 3).toFixed(1)}" x2="${W}" y2="${(H * i / 3).toFixed(1)}" stroke="var(--line)" stroke-width="0.5"/>`;
+  g += `<text x="${W - 8}" y="14" text-anchor="end">N ↑</text>`;
+  g += `<line x1="10" y1="${H - 10}" x2="${(10 + barW).toFixed(1)}" y2="${H - 10}" stroke="var(--muted)" stroke-width="2"/>`;
+  g += `<text x="10" y="${H - 15}">${lab}</text>`;
+  for (const e of pts) {
+    const [x, y] = toS(...xy(e.lat, e.lon));
+    const r = 4 + Math.min(4, Math.sqrt(e.cat === "maintenance" ? 1 : (+e.qty || 1)));
+    g += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" class="pt-${e.cat}" fill-opacity="0.85"><title>${esc(e.sp)} ×${esc(e.qty)}</title></circle>`;
+  }
+  if (fix) {
+    const [x, y] = toS(...xy(fix.lat, fix.lon));
+    g += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`;
+  }
+  svg.innerHTML = g;
+}
+
+/* ---------- CSV export ---------- */
+const COLS = ["entry_id", "date_local", "time_local", "timestamp_utc", "category", "species_or_task", "scientific_name", "quantity", "unit",
+  "method_or_status", "latitude_wgs84", "longitude_wgs84", "gps_accuracy_m", "altitude_m", "location_source", "observer", "site",
+  "comments", "voice_transcript", "voice_memo_on_device", "last_edited_utc"];
+const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+function buildCsv() {
+  const rows = entries.filter((e) => !e.example).slice().sort((a, b) => a.ts - b.ts).map((e) => {
+    const d = new Date(e.ts);
+    return [e.id, dateStr(d), `${timeStr(d)}:${pad(d.getSeconds())}`, d.toISOString(), CATS[e.cat].label, e.sp, e.sci, e.qty, e.unit,
+      e.method, fmt6(e.lat), fmt6(e.lon), e.acc != null ? Math.round(e.acc * 10) / 10 : "", e.alt != null ? Math.round(e.alt) : "",
+      e.src, e.observer, e.site, e.comment, e.transcript, e.audio ? "yes" : "no", e.edited ? new Date(e.edited).toISOString() : ""].map(csvCell).join(",");
+  });
+  return [COLS.join(",")].concat(rows).join("\r\n") + "\r\n";
+}
+const downloadsP = (window.claude && typeof window.claude.use === "function")
+  ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
+async function markExported() { lastExportAt = Date.now(); await store.setMeta("lastExportAt", lastExportAt).catch(() => {}); renderLog(); }
+$("#exportBtn").addEventListener("click", async () => {
+  if (!entries.some((e) => !e.example)) { toast("Nothing to export yet. Save an entry first."); return; }
+  const csv = buildCsv();
+  const name = `field-log_${(site || "site").replace(/[^\w-]+/g, "-")}_${dateStr(new Date())}.csv`;
+  const dl = await downloadsP;
+  if (dl) {
+    try { await dl.save({ filename: name, data: "﻿" + csv }); toast("Exported " + name); markExported(); }
+    catch (e) { if (e && e.code === "declined") toast("Export cancelled"); else showCsvText(csv); }
+    return;
+  }
+  try {
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast("Exported " + name); markExported();
+  } catch (e) { showCsvText(csv); }
+});
+function showCsvText(csv) {
+  const t = $("#csvOut"); t.value = csv; t.hidden = false; t.focus(); t.select();
+  toast("Select all and copy the CSV text");
+}
+$("#copyBtn").addEventListener("click", async () => {
+  const csv = buildCsv();
+  try { await navigator.clipboard.writeText(csv); toast("CSV copied. Paste it into a spreadsheet."); markExported(); }
+  catch (e) { showCsvText(csv); }
+});
+
+/* ---------- Settings ---------- */
+function renderSettings() {
+  $("#siteLabel").textContent = site ? site + (observer ? " · " + observer : "") : (observer || "No site set");
+  $("#customList").textContent = customSpecies.length ? "Your additions: " + customSpecies.map((s) => s.n).join(", ") : "";
+  $("#storageHint").textContent = store.persistent
+    ? "Entries are stored in this browser on this device. Export regularly, and don’t clear site data before you have."
+    : "This view can’t store data, so entries last only until the page closes. Open the offline copy on your phone for real use.";
+}
+$("#observer").addEventListener("change", async () => { observer = $("#observer").value.trim(); await store.setMeta("observer", observer).catch(() => {}); renderSettings(); });
+$("#site").addEventListener("change", async () => { site = $("#site").value.trim(); await store.setMeta("site", site).catch(() => {}); renderSettings(); });
+$("#addSp").addEventListener("click", async () => {
+  const n = $("#newName").value.trim(); if (!n) { $("#newName").focus(); return; }
+  if (findSpecies(n)) { toast(n + " is already on the list"); return; }
+  const c = $("#newCat").value;
+  customSpecies.push({ n, s: $("#newSci").value.trim(), c, a: [], u: c === "maintenance" ? "items" : undefined });
+  await store.setMeta("customSpecies", customSpecies).catch(() => {});
+  $("#newName").value = ""; $("#newSci").value = "";
+  renderSettings(); renderSugg(); toast("Added " + n);
+});
+$("#clearEx").addEventListener("click", async () => {
+  for (const e of entries.filter((x) => x.example)) await store.del(e.id).catch(() => {});
+  entries = entries.filter((x) => !x.example);
+  renderLog(); renderSugg();
+});
+
+/* ---------- Example entries (first run only, never exported) ---------- */
+function examples() {
+  const base = new Date(); base.setHours(6, 40, 0, 0);
+  const at = (h, m) => base.getTime() + (h * 60 + m) * 60000;
+  const L = [-34.48712, 148.71534];
+  const mk = (o) => Object.assign({ id: "ex-" + uid(), edited: null, alt: 512, src: "gps", observer: "Example ranger", site: "Example reserve", transcript: "", audio: null, example: true }, o);
+  return [
+    mk({ ts: at(0, 0), cat: "control", sp: "Feral pig", sci: "Sus scrofa", qty: 3, unit: "head", method: "Shot – ground", lat: L[0], lon: L[1], acc: 6, comment: "Sow and two juveniles rooting along the north dam wall. .308." , transcript: "shot three feral pigs at the north dam" }),
+    mk({ ts: at(0, 55), cat: "sighting", sp: "Short-beaked echidna", sci: "Tachyglossus aculeatus", qty: 1, unit: "individuals", method: "Seen", lat: L[0] + 0.0031, lon: L[1] + 0.0042, acc: 9, comment: "Foraging at base of termite mound beside the fire trail." }),
+    mk({ ts: at(1, 40), cat: "maintenance", sp: "Fence repair", sci: "", qty: 120, unit: "m", method: "Completed", lat: L[0] + 0.0052, lon: L[1] - 0.0021, acc: 12, comment: "Re-strained boundary fence and replaced 4 star pickets where pigs pushed under." }),
+    mk({ ts: at(2, 15), cat: "sighting", sp: "Glossy black-cockatoo", sci: "Calyptorhynchus lathami", qty: 4, unit: "individuals", method: "Heard", lat: L[0] + 0.0068, lon: L[1] + 0.0011, acc: 18, comment: "Feeding in she-oaks on the ridge. Two pairs." }),
+    mk({ ts: at(3, 5), cat: "control", sp: "Red fox", sci: "Vulpes vulpes", qty: 1, unit: "head", method: "Observed only", lat: L[0] + 0.0014, lon: L[1] - 0.0047, acc: 25, src: "gps", comment: "Crossing the creek flat. Set a camera trap on the den track next visit." })
+  ];
+}
+
+/* ---------- Installed app: offline cache and home-screen install ---------- */
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", (ev) => { ev.preventDefault(); installPrompt = ev; $("#installBtn").hidden = false; });
+window.addEventListener("appinstalled", () => { installPrompt = null; $("#installBtn").hidden = true; toast("Installed. Open Field Log from your home screen."); });
+$("#installBtn").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  try { await installPrompt.userChoice; } catch (e) {}
+  installPrompt = null; $("#installBtn").hidden = true;
+});
+function registerOffline() {
+  if (!("serviceWorker" in navigator) || (location.protocol !== "https:" && location.hostname !== "localhost") || !document.querySelector('link[rel="manifest"]')) return;
+  navigator.serviceWorker.register("sw.js").then((reg) => {
+    reg.addEventListener("updatefound", () => {
+      const nw = reg.installing; if (!nw) return;
+      nw.addEventListener("statechange", () => {
+        if (nw.state === "installed" && navigator.serviceWorker.controller) toast("Update downloaded. Close and reopen the app to use it.");
+      });
+    });
+  }).catch(() => {});
+}
+
+/* ---------- Boot ---------- */
+async function boot() {
+  const ok = await store.open();
+  if (!ok) notice("<b>This view can’t save to the device.</b> Entries last until the page closes. For field use, open the offline copy in your phone’s browser.");
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  try {
+    observer = (await store.getMeta("observer")) || ""; site = (await store.getMeta("site")) || "";
+    customSpecies = (await store.getMeta("customSpecies")) || [];
+    lastExportAt = (await store.getMeta("lastExportAt")) || 0;
+    entries = (await store.all()) || [];
+  } catch (e) { entries = []; }
+  if (!entries.length && !(await store.getMeta("seeded").catch(() => false))) {
+    const ex = examples(); for (const e of ex) await store.put(e).catch(() => {}); entries = ex;
+    await store.setMeta("seeded", true).catch(() => {});
+  }
+  entries.sort((a, b) => b.ts - a.ts);
+  $("#observer").value = observer; $("#site").value = site;
+  onCatChange(); renderSettings(); renderNet(); renderLog();
+  $("#voiceStatus").innerHTML = voiceIdleText();
+  startGps(); renderGps();
+  registerOffline();
+}
+boot();
+})();
+</script>
+
+</body></html>
