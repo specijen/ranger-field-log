@@ -881,14 +881,17 @@ $("#clearTranscript").addEventListener("click", () => {
    Phones let only one thing use the microphone at a time, so this either transcribes (speech-to-text into the
    Transcript box) or records an audio memo, not both. It transcribes when it can, and switches to an audio memo
    when transcription isn't available (no signal, dictation turned off, unsupported browser). */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+// On iPhone, only Safari offers speech-to-text to web pages; Chrome, Firefox, Edge and the Google app don't.
+const IOS_OTHER_BROWSER = /iP(hone|ad|od)/.test(navigator.userAgent) && /CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(navigator.userAgent);
+const SR = IOS_OTHER_BROWSER ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
 let voiceMode = null;            // null | "transcribe" | "memo"
 let recog = null, srText = "", srInterim = "", srEnded = null, srRestarts = 0, srStartedAt = 0, srGotResult = false;
 let mediaRec = null, chunks = [];
 const setVoice = (html) => { $("#voiceStatus").innerHTML = html; };
 function voiceIdleText() {
+  if (IOS_OTHER_BROWSER) return "<b>Speech-to-text only works in Safari on iPhone.</b> Here, tap the box below and use the keyboard’s 🎤 microphone, then tap Fill form. The orange button records an audio memo.";
   const base = "<b>Tap to speak.</b> E.g. “Shot three feral pigs at the north dam.” ";
-  if (!SR) return base + "This browser can’t turn speech into text, so it records an audio memo.";
+  if (!SR) return base + "This browser can’t turn speech into text, so it records an audio memo. For text, use the keyboard’s 🎤 microphone in the box below.";
   return base + "Words appear in the box below.";
 }
 function setMicOn(on) {
@@ -898,7 +901,7 @@ function setMicOn(on) {
 function startVoice() {
   // Start speech-to-text straight from the tap (no waiting first): iPhones only allow it inside the tap itself.
   if (SR) { startTranscribe(); return; }
-  startMemo("This browser can’t turn speech into text.");
+  startMemo(IOS_OTHER_BROWSER ? "Speech-to-text only works in Safari on iPhone." : "This browser can’t turn speech into text.");
 }
 
 function startTranscribe() {
