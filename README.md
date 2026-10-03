@@ -40,7 +40,7 @@ Do this once, with signal:
 
 ## Updating the app
 
-Edit `index.html`, then bump `APP_VERSION` in `sw.js`; phones download only the page (about 0.1 MB). If you change a map, icon or the HEIC converter, bump `STATIC_VERSION` too so phones re-download those files (about 1.9 MB plus 3 MB for the converter). Installed phones update the next time they open the app with signal and show “Update downloaded”; reopening the app applies it.
+Edit `index.html`, then bump `APP_VERSION` in `sw.js`; phones download only the page (about 0.1 MB). If you change a map, icon or the HEIC converter, bump `STATIC_VERSION` too so phones re-download those files (about 1.9 MB plus 3 MB for the converter). With signal, phones load the new version straight away; an open app reloads itself (or shows a Reload button if an entry is half filled in).
 
 ## Security notes
 
