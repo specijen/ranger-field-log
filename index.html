@@ -236,6 +236,17 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
 .plot-note { font-size: .8rem; color: var(--muted); padding: 4px 4px 0; }
 .plot-note:empty { display: none; }
 
+.xrange { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.xrange legend { padding: 0; margin-bottom: 6px; }
+.xseg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.xseg label { position: relative; text-align: center; padding: 10px 6px; font-weight: 600; font-size: .88rem; cursor: pointer; border-left: 1px solid var(--line); display: grid; place-items: center; }
+.xseg label:first-child { border-left: 0; }
+.xseg input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.xseg label:has(input:checked) { background: var(--ink); color: var(--surface); }
+.xseg label:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: -3px; }
+.xdates { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
+.xcount { font-weight: 600; font-size: .95rem; }
+.xcount .warn { color: var(--bad); font-weight: 600; }
 .chk { display: flex; align-items: center; gap: 8px; font-size: .92rem; cursor: pointer; }
 .chk input { width: 20px; height: 20px; accent-color: var(--accent); }
 #sharePhotoInfo { color: var(--muted); }
@@ -405,6 +416,19 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
       <div class="export">
         <span class="lbl">Export</span>
         <div class="hint" id="exportHint"></div>
+        <fieldset class="xrange">
+          <legend class="lbl">What to export</legend>
+          <div class="xseg" id="xSeg">
+            <label><input type="radio" name="xr" id="xr-all" value="all" checked>All entries</label>
+            <label><input type="radio" name="xr" id="xr-new" value="new">Since last export</label>
+            <label><input type="radio" name="xr" id="xr-range" value="range">From – To</label>
+          </div>
+          <div class="row xdates" id="xDates" hidden>
+            <div class="field"><label class="lbl" for="xFrom">From</label><input type="date" id="xFrom"></div>
+            <div class="field"><label class="lbl" for="xTo">To</label><input type="date" id="xTo"></div>
+          </div>
+          <div class="xcount" id="xCount"></div>
+        </fieldset>
         <div class="export-btns">
           <button type="button" class="save" id="shareBtn" hidden>Send by email</button>
           <button type="button" class="save" id="exportBtn">Export CSV</button>
@@ -1094,11 +1118,11 @@ function renderLog() {
   $("#prevLatest").textContent = last
     ? `Latest: ${last.sp} ×${last.qty} · ${dateStr(new Date(last.ts)) === dateStr(new Date()) ? "today" : dateStr(new Date(last.ts))} ${timeStr(new Date(last.ts))}`
     : (filter === "all" ? "Nothing logged yet" : "Nothing in this view");
-  const pending = real.filter((e) => (e.edited || e.ts) > lastExportAt).length;
+  const pending = real.filter((e) => changedAt(e) > lastExportAt).length;
   $("#exportHint").textContent = !real.length ? "Your entries will export as one CSV row each, with coordinates, accuracy and comments."
-    : pending ? `${real.length} entries on this device · ${pending} new or changed since the last export.`
-    : `${real.length} entries on this device · all exported.`;
-  renderShare();
+    : `${real.length} ${real.length === 1 ? "entry" : "entries"} on this device · ` +
+      (pending ? `${pending} new or changed since the last export.` : "all exported.");
+  renderExportSel();
   renderPlot();
 }
 $("#list").addEventListener("click", async (ev) => {
@@ -1199,10 +1223,49 @@ const COLS = ["entry_id", "date_local", "time_local", "timestamp_utc", "category
   "method_or_status", "latitude_wgs84", "longitude_wgs84", "gps_accuracy_m", "altitude_m", "location_source", "observer", "site",
   "comments", "voice_transcript", "voice_memo_on_device", "photos_on_device", "photo_files", "entered_utc", "last_edited_utc"];
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+/* ---------- What to export ---------- */
+let xMode = "all";
+const changedAt = (e) => e.edited || e.logged || e.ts;     // entered or edited since the last export counts as new
+function exportSelection() {
+  const real = entries.filter((e) => !e.example);
+  if (xMode === "new") return real.filter((e) => changedAt(e) > lastExportAt);
+  if (xMode === "range") {
+    const f = $("#xFrom").value, t = $("#xTo").value;
+    return real.filter((e) => { const d = dateStr(new Date(e.ts)); return (!f || d >= f) && (!t || d <= t); });
+  }
+  return real;
+}
+function renderExportSel() {
+  $("#xDates").hidden = xMode !== "range";
+  const sel = exportSelection(); const ph = sel.reduce((a, e) => a + (e.photos || []).length, 0);
+  const f = $("#xFrom").value, t = $("#xTo").value;
+  let msg = `${sel.length} ${sel.length === 1 ? "entry" : "entries"} selected` + (ph ? ` · ${ph} photo${ph === 1 ? "" : "s"}` : "");
+  if (xMode === "new" && !lastExportAt) msg += " · no export yet, so this is everything";
+  if (xMode === "range" && f && t && f > t) msg = `<span class="warn">The From date is after the To date.</span>`;
+  $("#xCount").innerHTML = msg;
+  renderShare();
+}
+function emptySelectionMsg() {
+  return xMode === "new" ? "Nothing new since the last export." : xMode === "range" ? "No entries between those dates." : "Nothing to export yet. Save an entry first.";
+}
+$("#xSeg").addEventListener("change", () => {
+  xMode = document.querySelector('input[name="xr"]:checked').value;
+  if (xMode === "range" && !$("#xTo").value) {
+    $("#xTo").value = dateStr(new Date());
+    $("#xFrom").value = dateStr(new Date(Date.now() - 6 * 86400000));
+  }
+  store.setMeta("exportMode", xMode).catch(() => {});
+  renderExportSel();
+});
+["#xFrom", "#xTo"].forEach((id) => $(id).addEventListener("change", () => {
+  store.setMeta("exportRange", [$("#xFrom").value, $("#xTo").value]).catch(() => {}); renderExportSel();
+}));
+
 const photoNames = (e) => (e.photos || []).map((_, i) => `${e.id}_photo${i + 1}.jpg`);
-const exportName = () => `field-log_${(site || "site").replace(/[^\w-]+/g, "-")}_${dateStr(new Date())}`;
-function buildCsv() {
-  const rows = entries.filter((e) => !e.example).slice().sort((a, b) => a.ts - b.ts).map((e) => {
+const exportName = () => `field-log_${(site || "site").replace(/[^\w-]+/g, "-")}_` +
+  (xMode === "range" ? `${$("#xFrom").value || "start"}_to_${$("#xTo").value || dateStr(new Date())}` : dateStr(new Date()) + (xMode === "new" ? "_new" : ""));
+function buildCsv(list) {
+  const rows = list.slice().sort((a, b) => a.ts - b.ts).map((e) => {
     const d = new Date(e.ts);
     return [e.id, dateStr(d), `${timeStr(d)}:${pad(d.getSeconds())}`, d.toISOString(), CATS[e.cat].label, e.sp, e.sci, e.qty, e.unit,
       e.method, fmt6(e.lat), fmt6(e.lon), e.acc != null ? Math.round(e.acc * 10) / 10 : "", e.alt != null ? Math.round(e.alt) : "",
@@ -1212,10 +1275,13 @@ function buildCsv() {
 }
 const downloadsP = (window.claude && typeof window.claude.use === "function")
   ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
-async function markExported() { lastExportAt = Date.now(); await store.setMeta("lastExportAt", lastExportAt).catch(() => {}); renderLog(); }
+async function markExported() {
+  if (xMode === "range") { renderLog(); return; }
+  lastExportAt = Date.now(); await store.setMeta("lastExportAt", lastExportAt).catch(() => {}); renderLog(); }
 $("#exportBtn").addEventListener("click", async () => {
-  if (!entries.some((e) => !e.example)) { toast("Nothing to export yet. Save an entry first."); return; }
-  const csv = buildCsv();
+  const sel = exportSelection();
+  if (!sel.length) { toast(emptySelectionMsg()); return; }
+  const csv = buildCsv(sel);
   const name = exportName() + ".csv";
   const dl = await downloadsP;
   if (dl) {
@@ -1238,15 +1304,14 @@ const canShareFiles = (() => {
 const mb = (n) => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + " MB";
 function renderShare() {
   $("#shareBtn").hidden = !canShareFiles; $("#shareHint").hidden = !canShareFiles;
-  const real = entries.filter((e) => !e.example);
-  const photos = real.flatMap((e) => e.photos || []);
+  const photos = exportSelection().flatMap((e) => e.photos || []);
   $("#sharePhotosRow").hidden = !canShareFiles || !photos.length;
   $("#sharePhotoInfo").textContent = photos.length ? `(${photos.length}, about ${mb(photos.reduce((a, b) => a + b.size, 0))})` : "";
 }
 $("#shareBtn").addEventListener("click", async () => {
-  const real = entries.filter((e) => !e.example);
-  if (!real.length) { toast("Nothing to send yet. Save an entry first."); return; }
-  const files = [new File(["\ufeff" + buildCsv()], exportName() + ".csv", { type: "text/csv" })];
+  const real = exportSelection();
+  if (!real.length) { toast(emptySelectionMsg()); return; }
+  const files = [new File(["\ufeff" + buildCsv(real)], exportName() + ".csv", { type: "text/csv" })];
   if ($("#sharePhotos").checked && !$("#sharePhotosRow").hidden) {
     for (const e of real) (e.photos || []).forEach((b, i) => files.push(new File([b], photoNames(e)[i], { type: b.type || "image/jpeg" })));
   }
@@ -1256,7 +1321,8 @@ $("#shareBtn").addEventListener("click", async () => {
   const n = real.length;
   try {
     await navigator.share({ files: send, title: "Field log export",
-      text: `Field log: ${n} ${n === 1 ? "entry" : "entries"}${site ? " from " + site : ""}, exported ${dateStr(new Date())} ${timeStr(new Date())}.` +
+      text: `Field log: ${n} ${n === 1 ? "entry" : "entries"}${site ? " from " + site : ""}` +
+        (xMode === "range" ? ` (${$("#xFrom").value || "start"} to ${$("#xTo").value || "today"})` : xMode === "new" ? " (new since last export)" : "") + `, exported ${dateStr(new Date())} ${timeStr(new Date())}.` +
         (send.length > 1 ? ` ${send.length - 1} photos attached; file names match the photo_files column.` : "") });
     markExported(); toast("Handed to your email app");
   } catch (err) {
@@ -1270,7 +1336,9 @@ function showCsvText(csv) {
   toast("Select all and copy the CSV text");
 }
 $("#copyBtn").addEventListener("click", async () => {
-  const csv = buildCsv();
+  const sel = exportSelection();
+  if (!sel.length) { toast(emptySelectionMsg()); return; }
+  const csv = buildCsv(sel);
   try { await navigator.clipboard.writeText(csv); toast("CSV copied. Paste it into a spreadsheet."); markExported(); }
   catch (e) { showCsvText(csv); }
 });
@@ -1524,6 +1592,11 @@ async function boot() {
   entries.sort((a, b) => b.ts - a.ts);
   $("#site").value = site; $("#loggedBy").value = observer; setWhenMode("now");
   try { $("#prevLog").open = !!(await store.getMeta("prevOpen")); } catch (e) {}
+  try {
+    const m = await store.getMeta("exportMode"); const r = await store.getMeta("exportRange");
+    if (r) { $("#xFrom").value = r[0] || ""; $("#xTo").value = r[1] || ""; }
+    if (m && document.getElementById("xr-" + m)) { xMode = m; document.getElementById("xr-" + m).checked = true; }
+  } catch (e) {}
   onCatChange(); renderSettings(); renderNet(); renderLog();
   $("#voiceStatus").innerHTML = voiceIdleText();
   startGps(); renderGps();
