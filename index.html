@@ -278,7 +278,7 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
         </button>
         <div style="min-width:0">
-          <div class="voice-status" id="voiceStatus"><b>Tap to speak.</b> Say what, how many and how, e.g. “Shot three feral pigs at the north dam.”</div>
+          <div class="voice-status" id="voiceStatus"><b>Tap to speak.</b> E.g. “Shot three feral pigs at the north dam.”</div>
         </div>
         <div class="quick">
           <label class="lbl" for="transcript">Transcript</label>
@@ -879,9 +879,9 @@ $("#clearTranscript").addEventListener("click", () => {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let mediaRec = null, recog = null, recording = false, chunks = [], srText = "", srEnded = null, srLocal = false;
 function voiceIdleText() {
-  const base = "<b>Tap to speak.</b> Say what, how many and how, e.g. “Shot three feral pigs at the north dam.” ";
-  if (!SR) return base + "This browser can’t transcribe, so your voice is saved as an audio memo.";
-  return base + "Your voice is always kept as an audio memo. With no signal, phones that support on-device speech still transcribe.";
+  const base = "<b>Tap to speak.</b> E.g. “Shot three feral pigs at the north dam.” ";
+  if (!SR) return base + "Saved as an audio memo.";
+  return base + "Also saved as an audio memo.";
 }
 async function startVoice() {
   let stream;
