@@ -1,13 +1,16 @@
 // Keeps the whole app on the phone so it opens with no signal.
 // Bump VERSION whenever any file below changes; phones pick up the new copy next time they're online.
-const VERSION = "field-log-v1";
+const VERSION = "field-log-v2";
 const FILES = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./icons/icon-maskable-512.png"
+  "./icons/icon-maskable-512.png",
+  "./maps/property-1/map.json",
+  "./maps/property-1/aerial.jpg",
+  "./maps/property-1/topo.jpg"
 ];
 
 self.addEventListener("install", (event) => {

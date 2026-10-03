@@ -172,7 +172,37 @@ summary { cursor: pointer; font-weight: 700; }
 .settings { display: grid; gap: 12px; margin-top: 12px; }
 #csvOut { font-family: var(--f-data); font-size: .75rem; min-height: 120px; }
 
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 10px; font-weight: 600; max-width: calc(100% - 32px); z-index: 10; }
+.req { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--accent-ink); margin-left: 4px; }
+.when { display: flex; flex-wrap: wrap; gap: 8px; }
+.when .btn { flex: 0 0 auto; }
+.when input { flex: 1 1 210px; min-width: 0; }
+.field.invalid input { border-color: var(--bad); box-shadow: 0 0 0 2px color-mix(in srgb, var(--bad) 25%, transparent); }
+
+.mapview { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr);
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.mv-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--ink); color: var(--bg); }
+.mv-bar strong { font-family: var(--f-head); text-transform: uppercase; letter-spacing: .04em; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-bar .btn { background: transparent; color: var(--bg); border-color: color-mix(in srgb, var(--bg) 40%, var(--ink)); }
+.mv-layers { display: flex; border-radius: 8px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--bg) 40%, var(--ink)); }
+.mv-layers button { border: 0; background: transparent; color: var(--bg); padding: 8px 14px; font-weight: 700; min-height: 40px; }
+.mv-layers button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.mv-stage { position: relative; overflow: hidden; touch-action: none; background: #5c6b5f; cursor: crosshair; }
+.mv-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.mv-world img { position: absolute; left: 0; top: 0; display: block; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.mv-world svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.mv-pin, .mv-me { position: absolute; left: 0; top: 0; pointer-events: none; }
+.mv-pin { width: 30px; height: 30px; margin: -30px 0 0 -15px; background: var(--accent);
+  clip-path: path("M15 0C7 0 1 6 1 13c0 9 14 17 14 17s14-8 14-17C29 6 23 0 15 0Z"); }
+.mv-pin::after { content: ""; position: absolute; left: 10px; top: 8px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+.mv-me { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: #2a7fff; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+.mv-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: #fff; }
+.mv-foot { display: grid; gap: 10px; padding: 12px 16px; background: var(--surface); border-top: 1px solid var(--line); }
+.mv-read { font-family: var(--f-data); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.mv-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.mv-btns .save { min-height: 46px; padding: 0 18px; flex: 1 1 180px; }
+.mv-btns .save:disabled { opacity: .45; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 10px; font-weight: 600; max-width: calc(100% - 32px); z-index: 30; }
 </style>
 
 <header class="bar">
@@ -228,7 +258,7 @@ summary { cursor: pointer; font-weight: 700; }
             <div class="qty-unit">
               <div class="stepper">
                 <button type="button" id="qtyDown" aria-label="Decrease quantity">−</button>
-                <input type="number" id="qty" inputmode="decimal" min="0" step="any" value="1" aria-labelledby="qtyLbl">
+                <input type="text" id="qty" inputmode="decimal" autocomplete="off" value="1" aria-labelledby="qtyLbl">
                 <button type="button" id="qtyUp" aria-label="Increase quantity">+</button>
               </div>
               <select id="unit" aria-label="Unit">
@@ -242,19 +272,31 @@ summary { cursor: pointer; font-weight: 700; }
           </div>
         </div>
 
+        <div class="row">
+          <div class="field">
+            <label class="lbl" for="whenAt">Date and time</label>
+            <div class="when">
+              <button type="button" class="btn" id="whenNow" aria-pressed="true">Log as now</button>
+              <input type="datetime-local" id="whenAt" aria-describedby="whenHint">
+            </div>
+            <div class="hint" id="whenHint">Saves the current time. Change the date or time to log something after the fact.</div>
+          </div>
+          <div class="field">
+            <label class="lbl" for="loggedBy">Logged by <span class="req">required</span></label>
+            <input type="text" id="loggedBy" list="loggedByList" autocomplete="name" placeholder="Your name">
+            <datalist id="loggedByList"></datalist>
+          </div>
+        </div>
+
         <div class="loc">
           <div class="head-row">
             <span class="lbl">Location · WGS84</span>
             <div class="loc-btns">
               <button type="button" class="btn" id="locGps" aria-pressed="true">Live GPS</button>
-              <button type="button" class="btn" id="locManual" aria-pressed="false">Enter manually</button>
+              <button type="button" class="btn" id="locMap" aria-pressed="false">Use map</button>
             </div>
           </div>
           <div class="loc-read" id="locRead">Waiting for GPS fix…</div>
-          <div class="row" id="manualRow" hidden>
-            <div class="field"><label class="lbl" for="mLat">Latitude</label><input type="text" id="mLat" inputmode="decimal" placeholder="-35.312845"></div>
-            <div class="field"><label class="lbl" for="mLon">Longitude</label><input type="text" id="mLon" inputmode="decimal" placeholder="148.904210"></div>
-          </div>
         </div>
 
         <div class="field">
@@ -305,12 +347,9 @@ summary { cursor: pointer; font-weight: 700; }
       </div>
 
       <details>
-        <summary>Observer, site and species list</summary>
+        <summary>Site and species list</summary>
         <div class="settings">
-          <div class="row">
-            <div class="field"><label class="lbl" for="observer">Observer</label><input type="text" id="observer" placeholder="Your name"></div>
-            <div class="field"><label class="lbl" for="site">Property / site</label><input type="text" id="site" placeholder="e.g. Boorowa Creek Reserve"></div>
-          </div>
+          <div class="field"><label class="lbl" for="site">Property / site</label><input type="text" id="site" placeholder="e.g. Boorowa Creek Reserve"></div>
           <div class="field">
             <span class="lbl">Add a species or task</span>
             <div class="row">
@@ -330,6 +369,28 @@ summary { cursor: pointer; font-weight: 700; }
       </details>
     </section>
   </main>
+</div>
+<div class="mapview" id="mapView" hidden role="dialog" aria-modal="true" aria-labelledby="mapTitle">
+  <div class="mv-bar">
+    <strong id="mapTitle">Property map</strong>
+    <div class="mv-layers" id="mapLayers" role="group" aria-label="Map layer"></div>
+    <button type="button" class="btn" id="mapClose">Cancel</button>
+  </div>
+  <div class="mv-stage" id="mapStage">
+    <div class="mv-world" id="mapWorld"><div id="mapImgs"></div><svg id="mapSvg" aria-hidden="true"></svg></div>
+    <div class="mv-me" id="mapMeDot" hidden></div>
+    <div class="mv-pin" id="mapPin" hidden></div>
+    <div class="mv-empty" id="mapEmpty" hidden></div>
+  </div>
+  <div class="mv-foot">
+    <div class="mv-read" id="mapRead">Tap the map where it happened. Drag to move, pinch to zoom.</div>
+    <div class="mv-btns">
+      <button type="button" class="btn" id="mapMe">Centre on me</button>
+      <button type="button" class="btn" id="mapChange">Change property map</button>
+      <button type="button" class="save" id="mapUse" disabled>Use this location</button>
+    </div>
+    <div class="hint" id="mapChangeNote" hidden></div>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
@@ -431,8 +492,10 @@ let entries = [];
 let editingId = null;
 let filter = "all";
 let fix = null, gpsErr = null;
-let locMode = "gps";
-let editLoc = null;            // original location kept while editing
+let locMode = "gps";           // "gps" | "map" | "kept"
+let editLoc = null;            // location carried over from the entry being edited or copied
+let mapPick = null;            // location chosen on the property map
+let whenMode = "now";          // "now" | "set"
 let draftAudio = null, draftTranscript = "";
 let observer = "", site = "", lastExportAt = 0;
 
@@ -498,8 +561,16 @@ $("#sugg").addEventListener("click", (e) => {
 });
 $("#species").addEventListener("input", () => { syncUnitFromSpecies(); renderSugg(); });
 $("#catSeg").addEventListener("change", onCatChange);
-$("#qtyUp").addEventListener("click", () => { const q = $("#qty"); q.value = Math.max(0, (parseFloat(q.value) || 0) + 1); });
-$("#qtyDown").addEventListener("click", () => { const q = $("#qty"); q.value = Math.max(0, (parseFloat(q.value) || 0) - 1); });
+function readQty() {
+  const t = String($("#qty").value).trim().replace(",", ".");
+  return t === "" || !/^\d*\.?\d*$/.test(t) ? NaN : Number(t);
+}
+function stepQty(d) {
+  const v = readQty();
+  $("#qty").value = String(Math.max(0, Math.round(((isNaN(v) ? 0 : v) + d) * 100) / 100));
+}
+$("#qtyUp").addEventListener("click", () => stepQty(1));
+$("#qtyDown").addEventListener("click", () => stepQty(-1));
 
 /* ---------- GPS ---------- */
 function startGps() {
@@ -526,10 +597,16 @@ function renderGps() {
 }
 function renderLocRead() {
   const el = $("#locRead");
-  if (locMode === "manual") {
-    el.innerHTML = editLoc && editLoc.lat != null && $("#mLat").value === fmt6(editLoc.lat)
-      ? `Keeping this entry’s original location (${esc(editLoc.src)}).`
-      : "Type coordinates in decimal degrees. South is negative.";
+  if (locMode === "kept" && editLoc) {
+    el.innerHTML = `<span>${fmt6(editLoc.lat)}, ${fmt6(editLoc.lon)}</span>` +
+      (editLoc.acc != null ? `<span class="acc ${accClass(editLoc.acc)}">±${Math.round(editLoc.acc)} m</span>` : "") +
+      `<span>${editLoc.copied ? "same place as the copied entry" : "this entry’s original location"}</span>`;
+    return;
+  }
+  if (locMode === "map") {
+    el.innerHTML = mapPick
+      ? `<span>${fmt6(mapPick.lat)}, ${fmt6(mapPick.lon)}</span><span class="acc ${accClass(mapPick.acc)}">±${Math.round(mapPick.acc)} m</span><span>from ${esc(mapPick.layer)} map</span>`
+      : "No point chosen yet. Tap <b>Use map</b> to pick one.";
     return;
   }
   if (fix) {
@@ -537,7 +614,7 @@ function renderLocRead() {
     el.innerHTML = `<span>${fmt6(fix.lat)}, ${fmt6(fix.lon)}</span><span class="acc ${accClass(fix.acc)}">±${Math.round(fix.acc)} m</span>` +
       (fix.alt != null ? `<span>${Math.round(fix.alt)} m alt</span>` : "") + `<span>${age < 5 ? "live" : age + "s ago"}</span>`;
   } else if (gpsErr && (gpsErr.code === 1 || gpsErr.code === 0)) {
-    el.innerHTML = "Location isn’t available here. Use <b>Enter manually</b>, or open the offline copy on your phone and allow location.";
+    el.innerHTML = "Location isn’t available here. Tap <b>Use map</b> to pick the spot, or allow location for this app.";
   } else {
     el.textContent = "Waiting for a GPS fix… Stand clear of trees and buildings for a faster lock.";
   }
@@ -545,26 +622,43 @@ function renderLocRead() {
 function setLocMode(m) {
   locMode = m;
   $("#locGps").setAttribute("aria-pressed", m === "gps");
-  $("#locManual").setAttribute("aria-pressed", m === "manual");
-  $("#manualRow").hidden = m !== "manual";
-  if (m === "manual" && !$("#mLat").value && fix) { $("#mLat").value = fmt6(fix.lat); $("#mLon").value = fmt6(fix.lon); }
-  if (m === "gps") editLoc = null;
+  $("#locMap").setAttribute("aria-pressed", m === "map");
+  if (m !== "kept") editLoc = null;
+  if (m !== "map") mapPick = null;
   renderLocRead();
 }
 $("#locGps").addEventListener("click", () => setLocMode("gps"));
-$("#locManual").addEventListener("click", () => setLocMode("manual"));
-["#mLat", "#mLon"].forEach((s) => $(s).addEventListener("input", renderLocRead));
+$("#locMap").addEventListener("click", () => openMap());
 setInterval(() => { if (fix) renderGps(); }, 5000);
 
 function currentLocation() {
-  if (locMode === "manual") {
-    const lat = parseFloat($("#mLat").value), lon = parseFloat($("#mLon").value);
-    if (isNaN(lat) || isNaN(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return { bad: true };
-    if (editLoc && fmt6(editLoc.lat) === fmt6(lat) && fmt6(editLoc.lon) === fmt6(lon)) return { ...editLoc };
-    return { lat, lon, acc: null, alt: null, src: "manual" };
-  }
+  if (locMode === "kept" && editLoc) return { lat: editLoc.lat, lon: editLoc.lon, acc: editLoc.acc, alt: editLoc.alt, src: editLoc.src };
+  if (locMode === "map") return mapPick ? { lat: mapPick.lat, lon: mapPick.lon, acc: mapPick.acc, alt: null, src: "map-" + mapPick.layer.toLowerCase() } : { missing: true };
   if (fix) return { lat: fix.lat, lon: fix.lon, acc: fix.acc, alt: fix.alt, src: "gps" };
   return { lat: null, lon: null, acc: null, alt: null, src: "none" };
+}
+
+/* ---------- Date and time of the observation ---------- */
+const localInput = (t) => { const d = new Date(t); return `${dateStr(d)}T${timeStr(d)}`; };
+function setWhenMode(m, t) {
+  whenMode = m;
+  $("#whenNow").setAttribute("aria-pressed", m === "now");
+  $("#whenAt").value = localInput(m === "now" ? Date.now() : t);
+  $("#whenHint").textContent = m === "now"
+    ? "Saves the current time. Change the date or time to log something after the fact."
+    : "Logging for the date and time shown. Tap Log as now to go back to the current time.";
+}
+$("#whenNow").addEventListener("click", () => setWhenMode("now"));
+$("#whenAt").addEventListener("input", () => {
+  whenMode = "set"; $("#whenNow").setAttribute("aria-pressed", "false");
+  $("#whenHint").textContent = "Logging for the date and time shown. Tap Log as now to go back to the current time.";
+});
+setInterval(() => { if (whenMode === "now" && document.activeElement !== $("#whenAt")) $("#whenAt").value = localInput(Date.now()); }, 15000);
+function readWhen() {
+  if (whenMode === "now") return Date.now();
+  const v = $("#whenAt").value; if (!v) return NaN;
+  const t = new Date(v).getTime();          // datetime-local is read as local time
+  return t;
 }
 
 /* ---------- Network ---------- */
@@ -749,29 +843,42 @@ function renderAudioDraft() {
 }
 
 /* ---------- Save / edit ---------- */
+function setFormMode(mode) {
+  $("#entryH").textContent = mode === "edit" ? "Edit entry" : mode === "copy" ? "Log again" : "New entry";
+  $("#saveBtn").textContent = mode === "edit" ? "Save changes" : "Save entry";
+  $("#cancelEdit").hidden = mode === "new";
+  $("#cancelEdit").textContent = mode === "edit" ? "Cancel edit" : "Cancel";
+}
 function resetForm() {
-  editingId = null; editLoc = null;
-  $("#entryH").textContent = "New entry"; $("#saveBtn").textContent = "Save entry"; $("#cancelEdit").hidden = true;
-  $("#species").value = ""; $("#qty").value = 1; $("#comment").value = ""; $("#transcript").value = ""; $("#parsed").textContent = "";
-  $("#mLat").value = ""; $("#mLon").value = "";
+  editingId = null; editLoc = null; mapPick = null;
+  setFormMode("new");
+  $("#species").value = ""; $("#qty").value = "1"; $("#comment").value = ""; $("#transcript").value = ""; $("#parsed").textContent = "";
+  $("#loggedBy").value = observer; $("#loggedBy").closest(".field").classList.remove("invalid");
   draftAudio = null; draftTranscript = ""; renderAudioDraft();
-  setLocMode("gps"); syncUnitFromSpecies(); renderSugg();
+  setWhenMode("now"); setLocMode("gps"); syncUnitFromSpecies(); renderSugg();
 }
 $("#cancelEdit").addEventListener("click", resetForm);
+$("#loggedBy").addEventListener("input", () => $("#loggedBy").closest(".field").classList.remove("invalid"));
 
 $("#form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const spName = $("#species").value.trim();
   if (!spName) { toast(cat() === "maintenance" ? "Pick or type a task first." : "Pick or type a species first."); $("#species").focus(); return; }
-  const qty = parseFloat($("#qty").value);
-  if (isNaN(qty) || qty < 0) { toast("Quantity must be 0 or more."); $("#qty").focus(); return; }
+  const qty = readQty();
+  if (isNaN(qty) || qty < 0) { toast("Enter a quantity of 0 or more."); $("#qty").focus(); return; }
+  const by = $("#loggedBy").value.trim();
+  if (!by) { $("#loggedBy").closest(".field").classList.add("invalid"); toast("Add who logged this entry."); $("#loggedBy").focus(); return; }
+  const when = readWhen();
+  if (isNaN(when)) { toast("Set a date and time, or tap Log as now."); $("#whenAt").focus(); return; }
+  if (when > Date.now() + 5 * 60000) { toast("That time is in the future. Check the date and time."); $("#whenAt").focus(); return; }
   const loc = currentLocation();
-  if (loc.bad) { toast("Check the coordinates: decimal degrees, e.g. -35.312845"); $("#mLat").focus(); return; }
+  if (loc.missing) { toast("Pick a point on the map, or switch to Live GPS."); return; }
   const sp = findSpecies(spName);
   const prev = editingId ? entries.find((e) => e.id === editingId) : null;
   const e = {
     id: prev ? prev.id : uid(),
-    ts: prev ? prev.ts : Date.now(),
+    ts: when,
+    logged: prev ? (prev.logged || prev.ts) : Date.now(),
     edited: prev ? Date.now() : null,
     cat: cat(), sp: sp ? sp.n : spName, sci: sp ? sp.s : "",
     qty, unit: $("#unit").value, method: $("#method").value,
@@ -779,28 +886,34 @@ $("#form").addEventListener("submit", async (ev) => {
     comment: $("#comment").value.trim(),
     transcript: draftTranscript || (prev ? prev.transcript : ""),
     audio: draftAudio || (prev ? prev.audio : null),
-    observer, site, example: false
+    observer: by, site, example: false
   };
   try { await store.put(e); }
   catch (err) { toast("Couldn’t save on this device. Copy your notes before closing."); return; }
+  if (by !== observer) { observer = by; await store.setMeta("observer", observer).catch(() => {}); renderSettings(); }
   entries = entries.filter((x) => x.id !== e.id).concat(e).sort((a, b) => b.ts - a.ts);
   toast(`${prev ? "Updated" : "Saved"} · ${e.sp} ×${e.qty}` + (e.src === "gps" ? ` · ±${Math.round(e.acc)} m` : e.src === "none" ? " · no location" : ""));
   resetForm(); renderLog();
 });
 
-function startEdit(id) {
-  const e = entries.find((x) => x.id === id); if (!e) return;
-  editingId = id;
+function loadIntoForm(e, mode) {
   setCat(e.cat);
   $("#species").value = e.sp; syncUnitFromSpecies(); $("#unit").value = e.unit;
-  $("#qty").value = e.qty; $("#method").value = e.method; $("#comment").value = e.comment || "";
-  $("#transcript").value = e.transcript || ""; draftTranscript = e.transcript || "";
+  $("#qty").value = String(e.qty); $("#method").value = e.method; $("#comment").value = e.comment || "";
+  if (mode === "edit") { $("#transcript").value = e.transcript || ""; draftTranscript = e.transcript || ""; $("#loggedBy").value = e.observer || observer; }
+  else { $("#transcript").value = ""; draftTranscript = ""; $("#loggedBy").value = observer || e.observer || ""; }
   draftAudio = null; renderAudioDraft();
-  if (e.lat != null) { editLoc = { lat: e.lat, lon: e.lon, acc: e.acc, alt: e.alt, src: e.src }; $("#mLat").value = fmt6(e.lat); $("#mLon").value = fmt6(e.lon); setLocMode("manual"); }
-  else { setLocMode("gps"); }
-  $("#entryH").textContent = "Edit entry"; $("#saveBtn").textContent = "Save changes"; $("#cancelEdit").hidden = false;
-  renderSugg();
+  if (mode === "edit") setWhenMode("set", e.ts); else setWhenMode("now");
+  if (e.lat != null) { setLocMode("kept"); editLoc = { lat: e.lat, lon: e.lon, acc: e.acc, alt: e.alt, src: e.src, copied: mode === "copy" }; renderLocRead(); }
+  else setLocMode("gps");
+  setFormMode(mode); renderSugg();
   $("#entryH").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function startEdit(id) { const e = entries.find((x) => x.id === id); if (!e) return; editingId = id; loadIntoForm(e, "edit"); }
+function startCopy(id) {
+  const e = entries.find((x) => x.id === id); if (!e) return;
+  editingId = null; loadIntoForm(e, "copy");
+  toast("Copied into the form. Check the details, then save.");
 }
 
 /* ---------- Log rendering ---------- */
@@ -827,7 +940,7 @@ function renderLog() {
   else {
     list.innerHTML = v.map((e) => {
       const d = new Date(e.ts);
-      const loc = e.lat != null ? `${fmt6(e.lat)}, ${fmt6(e.lon)}` + (e.acc != null ? ` ±${Math.round(e.acc)} m` : " (manual)") : "no location";
+      const loc = e.lat != null ? `${fmt6(e.lat)}, ${fmt6(e.lon)}` + (e.acc != null ? ` ±${Math.round(e.acc)} m` : "") + (e.src && e.src.startsWith("map") ? " (map)" : "") : "no location";
       return `<li data-id="${e.id}">
         <div class="ent-top">
           <span class="tag ${e.cat}">${esc(CATS[e.cat].label)}</span>
@@ -841,6 +954,7 @@ function renderLog() {
         ${e.comment ? `<div class="ent-cmt">${esc(e.comment)}</div>` : ""}
         <div class="ent-act">
           ${e.audio ? `<button type="button" class="btn" data-act="play">Play memo</button>` : ""}
+          <button type="button" class="btn" data-act="again">Log again</button>
           <button type="button" class="btn" data-act="edit">Edit</button>
           <button type="button" class="btn danger" data-act="del">Delete</button>
         </div>
@@ -858,6 +972,7 @@ $("#list").addEventListener("click", async (ev) => {
   const b = ev.target.closest("button[data-act]"); if (!b) return;
   const li = b.closest("li"); const id = li.dataset.id; const e = entries.find((x) => x.id === id);
   if (b.dataset.act === "edit") startEdit(id);
+  if (b.dataset.act === "again") startCopy(id);
   if (b.dataset.act === "play" && e && e.audio) {
     li.querySelector(".play-slot").innerHTML = `<audio controls autoplay src="${URL.createObjectURL(e.audio)}" style="max-width:100%"></audio>`;
   }
@@ -921,14 +1036,14 @@ function renderPlot() {
 /* ---------- CSV export ---------- */
 const COLS = ["entry_id", "date_local", "time_local", "timestamp_utc", "category", "species_or_task", "scientific_name", "quantity", "unit",
   "method_or_status", "latitude_wgs84", "longitude_wgs84", "gps_accuracy_m", "altitude_m", "location_source", "observer", "site",
-  "comments", "voice_transcript", "voice_memo_on_device", "last_edited_utc"];
+  "comments", "voice_transcript", "voice_memo_on_device", "entered_utc", "last_edited_utc"];
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 function buildCsv() {
   const rows = entries.filter((e) => !e.example).slice().sort((a, b) => a.ts - b.ts).map((e) => {
     const d = new Date(e.ts);
     return [e.id, dateStr(d), `${timeStr(d)}:${pad(d.getSeconds())}`, d.toISOString(), CATS[e.cat].label, e.sp, e.sci, e.qty, e.unit,
       e.method, fmt6(e.lat), fmt6(e.lon), e.acc != null ? Math.round(e.acc * 10) / 10 : "", e.alt != null ? Math.round(e.alt) : "",
-      e.src, e.observer, e.site, e.comment, e.transcript, e.audio ? "yes" : "no", e.edited ? new Date(e.edited).toISOString() : ""].map(csvCell).join(",");
+      e.src, e.observer, e.site, e.comment, e.transcript, e.audio ? "yes" : "no", new Date(e.logged || e.ts).toISOString(), e.edited ? new Date(e.edited).toISOString() : ""].map(csvCell).join(",");
   });
   return [COLS.join(",")].concat(rows).join("\r\n") + "\r\n";
 }
@@ -963,14 +1078,18 @@ $("#copyBtn").addEventListener("click", async () => {
 });
 
 /* ---------- Settings ---------- */
+function renderNames() {
+  const names = [...new Set([observer].concat(entries.filter((e) => !e.example).map((e) => e.observer)).filter(Boolean))];
+  $("#loggedByList").innerHTML = names.map((n) => `<option value="${esc(n)}"></option>`).join("");
+}
 function renderSettings() {
+  renderNames();
   $("#siteLabel").textContent = site ? site + (observer ? " · " + observer : "") : (observer || "No site set");
   $("#customList").textContent = customSpecies.length ? "Your additions: " + customSpecies.map((s) => s.n).join(", ") : "";
   $("#storageHint").textContent = store.persistent
     ? "Entries are stored in this browser on this device. Export regularly, and don’t clear site data before you have."
     : "This view can’t store data, so entries last only until the page closes. Open the offline copy on your phone for real use.";
 }
-$("#observer").addEventListener("change", async () => { observer = $("#observer").value.trim(); await store.setMeta("observer", observer).catch(() => {}); renderSettings(); });
 $("#site").addEventListener("change", async () => { site = $("#site").value.trim(); await store.setMeta("site", site).catch(() => {}); renderSettings(); });
 $("#addSp").addEventListener("click", async () => {
   const n = $("#newName").value.trim(); if (!n) { $("#newName").focus(); return; }
@@ -1001,6 +1120,164 @@ function examples() {
     mk({ ts: at(3, 5), cat: "control", sp: "Red fox", sci: "Vulpes vulpes", qty: 1, unit: "head", method: "Observed only", lat: L[0] + 0.0014, lon: L[1] - 0.0047, acc: 25, src: "gps", comment: "Crossing the creek flat. Set a camera trap on the den track next visit." })
   ];
 }
+
+/* ---------- Property map: offline aerial and topo, tap to set a location ---------- */
+const MAPS = ["maps/property-1/map.json"];   // more properties can be added here later
+let pmap = null, mapLayer = "aerial", mv = null;
+async function loadMap() {
+  if (pmap) return pmap;
+  let id = MAPS[0];
+  try { id = (await store.getMeta("mapId")) || id; } catch (e) {}
+  try {
+    const r = await fetch(id); if (!r.ok) throw new Error(r.status);
+    pmap = await r.json(); pmap.base = id.replace(/[^/]*$/, "");
+  } catch (e) { pmap = null; }
+  return pmap;
+}
+function mapWorldSize() { const L = pmap.layers[0]; return { W: L.width, H: L.height }; }
+function lonLatToWorld(lon, lat) {
+  const b = pmap.bounds, { W, H } = mapWorldSize();
+  return [(lon - b.west) / (b.east - b.west) * W, (b.north - lat) / (b.north - b.south) * H];
+}
+function worldToLonLat(x, y) {
+  const b = pmap.bounds, { W, H } = mapWorldSize();
+  return [b.west + x / W * (b.east - b.west), b.north - y / H * (b.north - b.south)];
+}
+function metresPerWorldUnit() {
+  const b = pmap.bounds, { W } = mapWorldSize();
+  return (b.east - b.west) * 111320 * Math.cos((b.north + b.south) / 2 * Math.PI / 180) / W;
+}
+
+async function openMap() {
+  $("#mapView").hidden = false; document.body.style.overflow = "hidden";
+  $("#mapChangeNote").hidden = true;
+  await loadMap();
+  if (!pmap) {
+    $("#mapEmpty").hidden = false;
+    $("#mapEmpty").textContent = "No property map on this device yet. Open the app once with signal so the map can download.";
+    $("#mapLayers").innerHTML = ""; $("#mapUse").disabled = true; return;
+  }
+  $("#mapEmpty").hidden = true;
+  $("#mapTitle").textContent = pmap.name || "Property map";
+  try { mapLayer = (await store.getMeta("mapLayer")) || mapLayer; } catch (e) {}
+  if (!pmap.layers.some((l) => l.id === mapLayer)) mapLayer = pmap.layers[0].id;
+  const { W, H } = mapWorldSize();
+  $("#mapImgs").innerHTML = pmap.layers.map((l) =>
+    `<img data-layer="${esc(l.id)}" src="${esc(pmap.base + l.src)}" alt="${esc(l.label)} map" width="${W}" height="${H}" style="width:${W}px;height:${H}px" ${l.id === mapLayer ? "" : "hidden"}>`).join("");
+  $("#mapLayers").innerHTML = pmap.layers.map((l) => `<button type="button" data-layer="${esc(l.id)}" aria-pressed="${l.id === mapLayer}">${esc(l.label)}</button>`).join("");
+  const svg = $("#mapSvg"); svg.setAttribute("width", W); svg.setAttribute("height", H); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  // start from the current pick, else the property
+  const st = $("#mapStage").getBoundingClientRect();
+  const fit = Math.min(st.width / W, st.height / H);
+  mv = { s: fit, fit, tx: 0, ty: 0, pick: null };
+  centreOn([W / 2, H / 2], Math.min(Math.max(st.width / W, st.height / H), fit * 2.5));
+  const seed = locMode === "map" && mapPick ? mapPick : null;
+  if (seed) { mv.pick = lonLatToWorld(seed.lon, seed.lat); centreOn(mv.pick, fit * 3); }
+  renderMapView();
+}
+function closeMap() { $("#mapView").hidden = true; document.body.style.overflow = ""; }
+function centreOn([x, y], scale) {
+  const st = $("#mapStage").getBoundingClientRect();
+  mv.s = Math.min(Math.max(scale, mv.fit), mv.fit * 40);
+  mv.tx = st.width / 2 - x * mv.s; mv.ty = st.height / 2 - y * mv.s;
+}
+function renderMapView() {
+  if (!mv || !pmap) return;
+  $("#mapWorld").style.transform = `translate(${mv.tx}px, ${mv.ty}px) scale(${mv.s})`;
+  const k = 1 / mv.s;   // keep overlay marks the same size on screen
+  let g = pmap.boundary ? pmap.boundary.map((r) =>
+    `<polyline points="${r.map(([lon, lat]) => lonLatToWorld(lon, lat).map((v) => v.toFixed(1)).join(",")).join(" ")}" fill="none" stroke="#ff5a1f" stroke-width="${(2.5 * k).toFixed(3)}" stroke-dasharray="${(8 * k).toFixed(2)} ${(5 * k).toFixed(2)}"/>`).join("") : "";
+  const col = { control: "#d8352b", sighting: "#14a38c", maintenance: "#d39a10" };
+  for (const e of entries) {
+    if (e.lat == null) continue;
+    const [x, y] = lonLatToWorld(e.lon, e.lat);
+    g += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(6 * k).toFixed(2)}" fill="${col[e.cat]}" stroke="#fff" stroke-width="${(1.5 * k).toFixed(2)}" opacity="${e.example ? 0.55 : 0.95}"/>`;
+  }
+  $("#mapSvg").innerHTML = g;
+  const place = (el, wx, wy) => { el.hidden = false; el.style.transform = `translate(${mv.tx + wx * mv.s}px, ${mv.ty + wy * mv.s}px)`; };
+  if (fix) { const [x, y] = lonLatToWorld(fix.lon, fix.lat); place($("#mapMeDot"), x, y); } else $("#mapMeDot").hidden = true;
+  if (mv.pick) {
+    place($("#mapPin"), mv.pick[0], mv.pick[1]);
+    const [lon, lat] = worldToLonLat(...mv.pick);
+    const acc = pickAccuracy();
+    $("#mapRead").innerHTML = `${fmt6(lat)}, ${fmt6(lon)} <span class="acc ${accClass(acc)}">±${acc} m</span>` +
+      (acc > 15 ? `<div class="hint">Zoom in and tap again for a more precise point.</div>` : "");
+    $("#mapUse").disabled = false;
+  } else {
+    $("#mapPin").hidden = true; $("#mapUse").disabled = true;
+    $("#mapRead").textContent = "Tap the map where it happened. Drag to move, pinch to zoom.";
+  }
+}
+// How precisely a fingertip can place a point at this zoom, plus the map's own positional error
+function pickAccuracy() { return Math.max(3, Math.round(12 / mv.s * metresPerWorldUnit() + 2)); }
+
+$("#mapLayers").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-layer]"); if (!b) return;
+  mapLayer = b.dataset.layer; store.setMeta("mapLayer", mapLayer).catch(() => {});
+  document.querySelectorAll("#mapLayers button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  document.querySelectorAll("#mapImgs img").forEach((im) => { im.hidden = im.dataset.layer !== mapLayer; });
+});
+$("#mapClose").addEventListener("click", () => { closeMap(); renderLocRead(); });
+$("#mapUse").addEventListener("click", () => {
+  if (!mv || !mv.pick) return;
+  const [lon, lat] = worldToLonLat(...mv.pick);
+  const layer = (pmap.layers.find((l) => l.id === mapLayer) || {}).label || mapLayer;
+  setLocMode("map"); mapPick = { lat, lon, acc: pickAccuracy(), layer };
+  closeMap(); renderLocRead(); toast("Location set from the map");
+});
+$("#mapMe").addEventListener("click", () => {
+  if (!mv || !pmap) return;
+  if (!fix) { toast("No GPS fix yet."); return; }
+  const p = lonLatToWorld(fix.lon, fix.lat); const { W, H } = mapWorldSize();
+  if (p[0] < 0 || p[1] < 0 || p[0] > W || p[1] > H) { toast("You’re outside this property map."); return; }
+  centreOn(p, Math.max(mv.s, mv.fit * 4)); renderMapView();
+});
+$("#mapChange").addEventListener("click", () => {
+  const n = $("#mapChangeNote");
+  n.textContent = `This device has one property map: ${pmap ? pmap.name : "none"}. Loading a map for a different property is coming in a later update.`;
+  n.hidden = !n.hidden;
+});
+window.addEventListener("resize", () => { if (mv && !$("#mapView").hidden) renderMapView(); });
+
+// Drag to pan, pinch or wheel to zoom, tap to drop the pin
+(() => {
+  const stage = $("#mapStage"); const pts = new Map(); let gesture = null;
+  const local = (ev) => { const r = stage.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; };
+  const zoomAt = ([x, y], f) => {
+    const ns = Math.min(Math.max(mv.s * f, mv.fit), mv.fit * 40); const k = ns / mv.s;
+    mv.tx = x - (x - mv.tx) * k; mv.ty = y - (y - mv.ty) * k; mv.s = ns;
+  };
+  stage.addEventListener("pointerdown", (ev) => {
+    if (!mv) return; stage.setPointerCapture(ev.pointerId);
+    pts.set(ev.pointerId, local(ev));
+    gesture = { start: local(ev), t: Date.now(), moved: false, multi: pts.size > 1, last: null };
+  });
+  stage.addEventListener("pointermove", (ev) => {
+    if (!mv || !pts.has(ev.pointerId)) return;
+    const prev = pts.get(ev.pointerId); const cur = local(ev); pts.set(ev.pointerId, cur);
+    if (pts.size === 1) {
+      mv.tx += cur[0] - prev[0]; mv.ty += cur[1] - prev[1];
+      if (Math.hypot(cur[0] - gesture.start[0], cur[1] - gesture.start[1]) > 8) gesture.moved = true;
+    } else {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]); const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      if (gesture.last) { zoomAt(mid, d / gesture.last.d); mv.tx += mid[0] - gesture.last.mid[0]; mv.ty += mid[1] - gesture.last.mid[1]; }
+      gesture.last = { d, mid }; gesture.moved = true; gesture.multi = true;
+    }
+    renderMapView();
+  });
+  const end = (ev) => {
+    if (!pts.has(ev.pointerId)) return;
+    const p = pts.get(ev.pointerId); pts.delete(ev.pointerId);
+    if (pts.size === 1 && gesture) gesture.last = null;
+    if (pts.size === 0 && gesture && !gesture.moved && !gesture.multi && Date.now() - gesture.t < 600 && ev.type === "pointerup") {
+      const wx = (p[0] - mv.tx) / mv.s, wy = (p[1] - mv.ty) / mv.s; const { W, H } = mapWorldSize();
+      if (wx >= 0 && wy >= 0 && wx <= W && wy <= H) { mv.pick = [wx, wy]; renderMapView(); }
+    }
+  };
+  stage.addEventListener("pointerup", end); stage.addEventListener("pointercancel", end);
+  stage.addEventListener("wheel", (ev) => { if (!mv) return; ev.preventDefault(); zoomAt(local(ev), ev.deltaY < 0 ? 1.25 : 0.8); renderMapView(); }, { passive: false });
+})();
 
 /* ---------- Installed app: offline cache and home-screen install ---------- */
 let installPrompt = null;
@@ -1040,7 +1317,7 @@ async function boot() {
     await store.setMeta("seeded", true).catch(() => {});
   }
   entries.sort((a, b) => b.ts - a.ts);
-  $("#observer").value = observer; $("#site").value = site;
+  $("#site").value = site; $("#loggedBy").value = observer; setWhenMode("now");
   onCatChange(); renderSettings(); renderNet(); renderLog();
   $("#voiceStatus").innerHTML = voiceIdleText();
   startGps(); renderGps();
