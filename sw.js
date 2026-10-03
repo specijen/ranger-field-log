@@ -1,32 +1,40 @@
 // Keeps the whole app on the phone so it opens with no signal.
-// Bump VERSION whenever any file below changes so phones refresh their saved copies.
-const VERSION = "field-log-v10";
-const FILES = [
-  "./",
-  "./index.html",
-  "./manifest.webmanifest",
+// Two saved sets, so an app update doesn't re-download the big files:
+//   APP_VERSION    - the page itself. Bump on every app change (small download).
+//   STATIC_VERSION - icons, maps and the HEIC converter. Bump only when one of those files changes.
+const APP_VERSION = "field-log-app-v11";
+const STATIC_VERSION = "field-log-static-v1";
+const APP_FILES = ["./", "./index.html", "./manifest.webmanifest"];
+const STATIC_FILES = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
   "./maps/property-1/map.json",
   "./maps/property-1/aerial.jpg",
-  "./maps/property-1/topo.jpg"
+  "./maps/property-1/topo.jpg",
+  "./lib/heic-to/heic-to.min.js"
 ];
 const PAGE_TIMEOUT_MS = 4000;   // weak signal: give up on the network and open the saved page
 
 self.addEventListener("install", (event) => {
-  // Fetch past the browser's own cache, then take over straight away rather than waiting for every tab to close.
-  event.waitUntil(
-    caches.open(VERSION)
-      .then((cache) => cache.addAll(FILES.map((f) => new Request(f, { cache: "reload" }))))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    // The page: fetched fresh, past the browser's own cache.
+    const app = await caches.open(APP_VERSION);
+    await app.addAll(APP_FILES.map((f) => new Request(f, { cache: "reload" })));
+    // Big files: only download what this phone doesn't already have.
+    const stat = await caches.open(STATIC_VERSION);
+    for (const f of STATIC_FILES) {
+      if (!(await stat.match(f))) await stat.add(new Request(f, { cache: "reload" }));
+    }
+    // Take over straight away rather than waiting for every tab to close.
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== APP_VERSION && k !== STATIC_VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -38,7 +46,7 @@ self.addEventListener("fetch", (event) => {
   // The page itself: latest from the network when there is signal, the saved copy otherwise.
   if (req.mode === "navigate") {
     event.respondWith(
-      caches.open(VERSION).then(async (cache) => {
+      caches.open(APP_VERSION).then(async (cache) => {
         const network = fetch(req, { cache: "no-cache" }).then((res) => {
           if (res.ok) cache.put("./index.html", res.clone());
           return res;
@@ -56,15 +64,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Everything else (icons, maps): from the phone first, refreshed in the background when there is signal.
-  event.respondWith(
-    caches.open(VERSION).then(async (cache) => {
-      const cached = await cache.match(req, { ignoreSearch: true });
-      const fresh = fetch(req)
-        .then((res) => { if (res.ok) cache.put(req, res.clone()); return res; })
-        .catch(() => null);
-      if (cached) { event.waitUntil(fresh); return cached; }
-      return (await fresh) || new Response("Offline and not yet saved. Open the app once with signal.", { status: 503 });
-    })
-  );
+  // Everything else: the saved copy if there is one (big files are versioned by STATIC_VERSION, so they
+  // aren't re-fetched in the background); otherwise the network, saved for next time.
+  event.respondWith((async () => {
+    const cached = await caches.match(req, { ignoreSearch: true });
+    if (cached) return cached;
+    try {
+      const res = await fetch(req);
+      if (res.ok) (await caches.open(APP_VERSION)).put(req, res.clone());
+      return res;
+    } catch (e) {
+      return new Response("Offline and not yet saved. Open the app once with signal.", { status: 503 });
+    }
+  })());
 });

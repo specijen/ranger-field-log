@@ -12,7 +12,7 @@ Each entry records the species or task (with scientific name), quantity and unit
 - **Logged by** is required and is remembered for the next entry.
 - **Location:** *Live GPS*, or *Use map* to tap the spot on the offline property map (aerial photo or topo, opening on whichever was used last). Map points are tagged `map-aerial` / `map-topo` with an estimated accuracy.
 - **Log again** on any entry copies it into the form with the current time and the same location, ready to check and save.
-- **Photos:** *Take photo* opens the camera; *Choose from library* picks one or more existing photos. Photos are shrunk to 1600 px and stored with the entry on the phone; the CSV records how many each entry has (`photos_on_device`).
+- **Photos:** *Take photo* opens the camera; *Choose from library* picks one or more existing photos. Photos are shrunk to 1600 px and stored with the entry on the phone. HEIC/HEIF photos (e.g. Samsung's "High efficiency pictures") are converted to JPEG on the phone when the browser can't show them, using the bundled `lib/heic-to` converter (LGPL-3.0, loaded only when needed, works offline); the CSV records how many each entry has (`photos_on_device`).
 - **Send by email:** opens the phone's share menu with the CSV attached (and, optionally, the photos, named to match the CSV's `photo_files` column). Pick Mail, Gmail or Outlook; without signal the email waits in the outbox. *Export CSV* saves the file instead, and *Copy CSV* puts the text on the clipboard. **What to export** applies to all three: *All entries*, *Since last export* (anything entered or edited since the last export), or *From – To* (by observation date, inclusive). A date-range export doesn't reset the *since last export* marker.
 - **Log history map:** logged points are drawn on the property's topo map, with the boundary and your current position. Tap the microphone to log by voice: “shot three feral pigs at the north dam” fills in the form, and the recording is kept as an audio memo. Export everything as CSV for a spreadsheet or GIS.
 
@@ -40,13 +40,13 @@ Do this once, with signal:
 
 ## Updating the app
 
-Edit `index.html`, then bump `VERSION` in `sw.js` so phones fetch the new copy. Installed phones update the next time they open the app with signal and show “Update downloaded”; reopening the app applies it.
+Edit `index.html`, then bump `APP_VERSION` in `sw.js`; phones download only the page (about 0.1 MB). If you change a map, icon or the HEIC converter, bump `STATIC_VERSION` too so phones re-download those files (about 1.9 MB plus 3 MB for the converter). Installed phones update the next time they open the app with signal and show “Update downloaded”; reopening the app applies it.
 
 ## Security notes
 
 - The page carries a Content-Security-Policy that only allows its own files, so it cannot send data to any other site. It refuses to run inside another website's frame.
 - CSV text that starts with `=`, `+`, `-` or `@` gets a leading `'` so spreadsheets treat it as text, not a formula. Plain numbers are untouched.
-- Only JPEG, PNG, HEIC and WebP photos are accepted.
+- Only JPEG, PNG, HEIC and WebP photos are accepted. The HEIC converter runs in a blob worker, which is why the policy allows `worker-src blob:`.
 - Anyone who can push to this repository can change the app on every phone: keep two-factor sign-in on the GitHub account and limit who has write access.
 - All GitHub Pages sites under `specijen.github.io` share one browser storage area. Don't publish other sites there, or move Field Log to its own domain.
 - Entries, photos and memos are stored unencrypted in the phone's browser storage; keep phones locked with a passcode.

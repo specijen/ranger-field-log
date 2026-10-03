@@ -1,4 +1,4 @@
-<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#17201b"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/icon-192.png"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#17201b"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/icon-192.png"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
 <title>Ranger Field Log</title>
 <style>
 /* Layout: one-column field tool on a phone (entry form, then log); form beside log on wide screens. System fonts only, so nothing is fetched when offline. */
@@ -363,8 +363,8 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
           <div class="photo-btns">
             <button type="button" class="btn photo-take" id="photoTake">Take photo</button>
             <button type="button" class="btn" id="photoPick">Choose from library</button>
-            <input type="file" id="photoCam" accept="image/*" capture="environment" hidden>
-            <input type="file" id="photoLib" accept="image/*" multiple hidden>
+            <input type="file" id="photoCam" accept="image/*,.heic,.heif" capture="environment" hidden>
+            <input type="file" id="photoLib" accept="image/*,.heic,.heif" multiple hidden>
           </div>
           <div class="thumbs" id="photoThumbs"></div>
         </div>
@@ -959,20 +959,37 @@ function renderAudioDraft() {
 /* ---------- Photos ---------- */
 const blobUrls = new WeakMap();
 const urlFor = (blob) => { let u = blobUrls.get(blob); if (!u) { u = URL.createObjectURL(blob); blobUrls.set(blob, u); } return u; };
-// Shrink to at most 1600 px on the long side so photos don't fill the phone; keeps the original if the browser can't decode it.
+const isHeicFile = (f) => /^image\/hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name || "");
+// HEIC converter: about 3 MB, so it is only loaded when a HEIC photo can't be shown by the browser (e.g. Chrome on Android).
+let heicLib = null;
+async function heicToJpeg(file) {
+  heicLib = heicLib || import("./lib/heic-to/heic-to.min.js").catch((e) => { heicLib = null; throw e; });
+  const { heicTo } = await heicLib;
+  return heicTo({ blob: file, type: "image/jpeg", quality: 0.9 });
+}
+// Shrink to at most 1600 px on the long side so photos don't fill the phone. HEIC photos the browser can't read
+// are converted to JPEG first. If a photo can't be read at all, the original file is kept.
 async function shrinkPhoto(file) {
+  let src = file, bmp = null;
+  try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch (e) {
+    if (!isHeicFile(file)) return file;
+    try { toast("Converting HEIC photo…"); src = await heicToJpeg(file); bmp = await createImageBitmap(src, { imageOrientation: "from-image" }); }
+    catch (err) { toast("Couldn’t convert this HEIC photo. It’s saved but may not show on this phone."); return file; }
+  }
   try {
-    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
     const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
     const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
     c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
     const out = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.82));
-    return out && out.size < file.size ? out : file;
-  } catch (e) { return file; }
+    if (!out) return src;
+    return src === file && out.size >= file.size && !isHeicFile(file) ? file : out;   // always store converted HEIC as JPEG
+  } catch (e) { return src; }
 }
 async function addPhotos(files) {
   const PHOTO_TYPES = /^image\/(jpeg|png|heic|heif|webp)$/i;
-  const list = [...files].filter((f) => PHOTO_TYPES.test(f.type) || (!f.type && /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name)));
+  const untyped = (f) => !f.type || f.type === "application/octet-stream";   // some Android pickers don't label HEIC files
+  const list = [...files].filter((f) => PHOTO_TYPES.test(f.type) || (untyped(f) && /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name)));
   if (list.length < files.length) toast("Only JPEG, PNG, HEIC or WebP photos can be added.");
   if (!list.length) return;
   for (const f of list) draftPhotos.push(await shrinkPhoto(f));
@@ -1574,10 +1591,11 @@ function formInProgress() {
 }
 function registerOffline() {
   if (!("serviceWorker" in navigator) || (location.protocol !== "https:" && location.hostname !== "localhost") || !document.querySelector('link[rel="manifest"]')) return;
-  const hadController = !!navigator.serviceWorker.controller;
+  let skipFirst = !navigator.serviceWorker.controller;  // first visit: the first takeover is just the initial install
   let reloading = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (!hadController || reloading) return;           // first install: nothing to refresh
+    if (skipFirst) { skipFirst = false; return; }
+    if (reloading) return;
     if (!formInProgress()) { reloading = true; location.reload(); return; }
     notice('<b>A new version of Field Log is ready.</b> Save or clear this entry, then <button type="button" class="btn" id="reloadNow">Reload</button>');
     $("#reloadNow").addEventListener("click", () => { reloading = true; location.reload(); });
