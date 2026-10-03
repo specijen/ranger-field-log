@@ -856,7 +856,9 @@ function applyParse(text) {
   if (p.qty != null) { $("#qty").value = p.qty; filled.push("qty " + p.qty); }
   if (p.unit) { $("#unit").value = p.unit; }
   const cm = $("#comment");
-  if (!cm.value.includes(t)) cm.value = cm.value ? cm.value + "\n" + t : t;
+  // Replace the previous transcript in Comments when the person adds to it, rather than copying it twice
+  if (draftTranscript && draftTranscript !== t && cm.value.includes(draftTranscript)) cm.value = cm.value.replace(draftTranscript, t);
+  else if (!cm.value.includes(t)) cm.value = cm.value ? cm.value + "\n" + t : t;
   draftTranscript = t;
   renderSugg();
   $("#parsed").innerHTML = filled.length
@@ -875,23 +877,94 @@ $("#clearTranscript").addEventListener("click", () => {
   $("#transcript").focus();
 });
 
-/* ---------- Voice capture: audio memo always, live transcript when the device can ---------- */
+/* ---------- Voice capture ----------
+   Phones let only one thing use the microphone at a time, so this either transcribes (speech-to-text into the
+   Transcript box) or records an audio memo, not both. It transcribes when it can, and switches to an audio memo
+   when transcription isn't available (no signal, dictation turned off, unsupported browser). */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let mediaRec = null, recog = null, recording = false, chunks = [], srText = "", srEnded = null, srLocal = false;
+let voiceMode = null;            // null | "transcribe" | "memo"
+let recog = null, srText = "", srInterim = "", srEnded = null, srRestarts = 0, srStartedAt = 0, srGotResult = false;
+let mediaRec = null, chunks = [];
+const setVoice = (html) => { $("#voiceStatus").innerHTML = html; };
 function voiceIdleText() {
   const base = "<b>Tap to speak.</b> E.g. “Shot three feral pigs at the north dam.” ";
-  if (!SR) return base + "Saved as an audio memo.";
-  return base + "Also saved as an audio memo.";
+  if (!SR) return base + "This browser can’t turn speech into text, so it records an audio memo.";
+  return base + "Words appear in the box below.";
 }
-async function startVoice() {
+function setMicOn(on) {
+  $("#micBtn").setAttribute("aria-pressed", on ? "true" : "false");
+  $("#micBtn").setAttribute("aria-label", on ? "Stop voice log" : "Start voice log");
+}
+function startVoice() {
+  // Start speech-to-text straight from the tap (no waiting first): iPhones only allow it inside the tap itself.
+  if (SR) { startTranscribe(); return; }
+  startMemo("This browser can’t turn speech into text.");
+}
+
+function startTranscribe() {
+  voiceMode = "transcribe"; srText = $("#transcript").value.trim(); srInterim = ""; srRestarts = 0; srGotResult = false;
+  setMicOn(true);
+  setVoice("<b>Listening…</b> Speak now, then tap the microphone to stop.");
+  runRecog();
+}
+function runRecog() {
+  const r = new SR();
+  recog = r;
+  r.lang = "en-AU"; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+  if (!navigator.onLine) { try { r.processLocally = true; } catch (e) {} }   // no signal: ask for on-device speech
+  srStartedAt = Date.now();
+  r.onresult = (ev) => {
+    let fin = "", interim = "";
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const res = ev.results[i];
+      if (res.isFinal) fin += res[0].transcript + " "; else interim += res[0].transcript + " ";
+    }
+    if (fin) srText = (srText + " " + fin).replace(/\s+/g, " ").trim();
+    srInterim = interim.trim(); srGotResult = true;
+    $("#transcript").value = (srText + " " + srInterim).trim();
+  };
+  r.onerror = (ev) => {
+    r.failed = ev.error;
+    const why = {
+      "not-allowed": "Speech-to-text isn’t allowed. Allow the microphone for this site. On iPhone also turn on Settings › General › Keyboard › Enable Dictation.",
+      "service-not-allowed": "Speech-to-text isn’t available here (on iPhone it can be blocked when the app runs from the home screen, or when Dictation is off).",
+      "network": "Speech-to-text needs signal on this phone.",
+      "language-not-supported": "Speech-to-text for English (Australia) isn’t available on this phone without signal.",
+      "audio-capture": "The microphone is busy or unavailable.",
+    }[ev.error];
+    if (why && voiceMode === "transcribe") { r.fatal = true; fallBackToMemo(why); }
+  };
+  r.onend = () => {
+    if (recog !== r) return;
+    if (srInterim) { srText = (srText + " " + srInterim).trim(); srInterim = ""; }   // keep words the phone hadn't finalised
+    if (voiceMode === "transcribe" && !r.fatal) {
+      // Phones stop listening after a pause; carry on until the person taps stop, but don't spin if it keeps ending at once.
+      const quick = Date.now() - srStartedAt < 1500 && !srGotResult;
+      if (++srRestarts <= 30 && !(quick && srRestarts > 2)) { try { runRecog(); return; } catch (e) {} }
+      if (!srGotResult) { fallBackToMemo("Speech-to-text stopped working on this phone."); return; }
+      finishVoice(); return;
+    }
+    recog = null; if (srEnded) { srEnded(); srEnded = null; }
+  };
+  try { r.start(); }
+  catch (e) { r.fatal = true; recog = null; fallBackToMemo("Speech-to-text couldn’t start."); }
+}
+function fallBackToMemo(reason) {
+  if (recog) { const r = recog; recog = null; try { r.abort(); } catch (e) {} }
+  startMemo(reason);
+}
+
+async function startMemo(reason) {
+  voiceMode = "memo"; setMicOn(true);
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (e) {
-    $("#voiceStatus").innerHTML = "<b>Microphone not available here.</b> Allow microphone access, or type a note in the box below and tap Fill.";
+    voiceMode = null; setMicOn(false);
+    setVoice(`<b>Microphone not available.</b> ${reason ? esc(reason) + " " : ""}Allow the microphone for this site, or type (or use the keyboard’s microphone) in the box below and tap Fill form.`);
     return;
   }
-  recording = true; chunks = []; srText = "";
-  $("#micBtn").setAttribute("aria-pressed", "true"); $("#micBtn").setAttribute("aria-label", "Stop voice log");
+  if (voiceMode !== "memo") { stream.getTracks().forEach((t) => t.stop()); return; }   // stopped while asking
+  chunks = [];
   try {
     mediaRec = new MediaRecorder(stream);
     mediaRec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
@@ -900,53 +973,39 @@ async function startVoice() {
       if (chunks.length) { draftAudio = new Blob(chunks, { type: mediaRec.mimeType || "audio/webm" }); renderAudioDraft(); }
     };
     mediaRec.start();
-  } catch (e) { mediaRec = null; }
-  srLocal = !navigator.onLine;   // offline: ask for on-device speech; the memo still records if it isn't there
-  if (SR) {
-    startRecog();
-    $("#voiceStatus").innerHTML = "<b>Listening…</b> Tap again when you’re done.";
-  } else {
-    $("#voiceStatus").innerHTML = "<b>Recording voice memo…</b> This browser can’t transcribe. Tap again to stop.";
+  } catch (e) {
+    stream.getTracks().forEach((t) => t.stop()); voiceMode = null; setMicOn(false);
+    setVoice("<b>This phone can’t record audio here.</b> Type (or use the keyboard’s microphone) in the box below and tap Fill form.");
+    return;
   }
+  setVoice(`<b>Recording an audio memo…</b> ${reason ? esc(reason) + " " : ""}Speak now, then tap the microphone to stop. Tip: the keyboard’s own microphone can type into the box below.`);
 }
-function startRecog() {
-  let base = srText;
-  recog = new SR();
-  recog.lang = "en-AU"; recog.continuous = true; recog.interimResults = true;
-  if (srLocal) { try { recog.processLocally = true; } catch (e) {} }
-  recog.onresult = (ev) => {
-    let fin = "", interim = "";
-    for (let i = 0; i < ev.results.length; i++) {
-      const r = ev.results[i];
-      if (r.isFinal) fin += r[0].transcript + " "; else interim += r[0].transcript;
-    }
-    srText = (base + " " + fin).replace(/\s+/g, " ").trim();
-    $("#transcript").value = (srText + " " + interim).trim();
-  };
-  recog.onerror = (ev) => {
-    if (["network", "language-not-supported", "service-not-allowed"].includes(ev.error)) recording && (recog.dead = true);
-    if (ev.error === "network" || ev.error === "language-not-supported" || ev.error === "service-not-allowed") $("#voiceStatus").innerHTML = "<b>Recording voice memo…</b> Transcription needs signal on this phone. Tap again to stop.";
-    else if (ev.error === "not-allowed") $("#voiceStatus").innerHTML = "<b>Recording voice memo…</b> Speech-to-text was refused. Tap again to stop.";
-  };
-  recog.onend = () => {
-    if (recording && !recog.dead) { try { startRecog(); } catch (e) {} return; }   // browser stopped on silence: keep going
-    recog = null; if (srEnded) { srEnded(); srEnded = null; }
-  };
-  try { recog.start(); } catch (e) { recog = null; }
-}
+
 async function stopVoice() {
-  recording = false;
-  $("#micBtn").setAttribute("aria-pressed", "false"); $("#micBtn").setAttribute("aria-label", "Start voice log");
-  if (mediaRec && mediaRec.state !== "inactive") mediaRec.stop();
-  if (recog) {
-    await new Promise((res) => { srEnded = res; try { recog.stop(); } catch (e) { res(); } setTimeout(res, 2000); });
+  const mode = voiceMode; voiceMode = null; setMicOn(false);
+  if (mode === "memo") {
+    if (mediaRec && mediaRec.state !== "inactive") mediaRec.stop();
+    setVoice(voiceIdleText());
+    $("#parsed").textContent = "Audio memo attached. Fill in the fields, then save.";
+    return;
   }
-  const text = $("#transcript").value.trim();
-  $("#voiceStatus").innerHTML = voiceIdleText();
-  if (text) applyParse(text);
-  else $("#parsed").textContent = "Voice memo attached. Fill in the fields, then save.";
+  if (recog) {
+    const r = recog;
+    await new Promise((res) => { srEnded = res; try { r.stop(); } catch (e) { res(); } setTimeout(res, 2000); });
+    recog = null;
+  }
+  finishVoice();
 }
-$("#micBtn").addEventListener("click", () => { recording ? stopVoice() : startVoice(); });
+function finishVoice() {
+  voiceMode = null; setMicOn(false); recog = null;
+  if (srInterim) { srText = (srText + " " + srInterim).trim(); srInterim = ""; }
+  if (srText) $("#transcript").value = srText;
+  const text = $("#transcript").value.trim();
+  setVoice(voiceIdleText());
+  if (text) applyParse(text);
+  else $("#parsed").textContent = "Didn’t catch anything. Try again closer to the phone, or type in the box.";
+}
+$("#micBtn").addEventListener("click", () => { voiceMode ? stopVoice() : startVoice(); });
 
 function renderAudioDraft() {
   const box = $("#audioDraft");
@@ -1587,7 +1646,7 @@ $("#installBtn").addEventListener("click", async () => {
   installPrompt = null; $("#installBtn").hidden = true;
 });
 function formInProgress() {
-  return !!($("#species").value.trim() || $("#comment").value.trim() || $("#transcript").value.trim() || draftAudio || draftPhotos.length || editingId || recording || !$("#mapView").hidden);
+  return !!($("#species").value.trim() || $("#comment").value.trim() || $("#transcript").value.trim() || draftAudio || draftPhotos.length || editingId || !!voiceMode || !$("#mapView").hidden);
 }
 function registerOffline() {
   if (!("serviceWorker" in navigator) || (location.protocol !== "https:" && location.hostname !== "localhost") || !document.querySelector('link[rel="manifest"]')) return;
