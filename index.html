@@ -236,6 +236,11 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
 .plot-note { font-size: .8rem; color: var(--muted); padding: 4px 4px 0; }
 .plot-note:empty { display: none; }
 
+.chk { display: flex; align-items: center; gap: 8px; font-size: .92rem; cursor: pointer; }
+.chk input { width: 20px; height: 20px; accent-color: var(--accent); }
+#sharePhotoInfo { color: var(--muted); }
+.export-btns #shareBtn:not([hidden]) ~ #exportBtn { background: var(--sunk); color: var(--ink); border: 1px solid var(--line); font-weight: 600; font-size: .9rem; }
+
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 10px; font-weight: 600; max-width: calc(100% - 32px); z-index: 30; }
 </style>
 
@@ -401,9 +406,12 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
         <span class="lbl">Export</span>
         <div class="hint" id="exportHint"></div>
         <div class="export-btns">
+          <button type="button" class="save" id="shareBtn" hidden>Send by email</button>
           <button type="button" class="save" id="exportBtn">Export CSV</button>
           <button type="button" class="btn" id="copyBtn">Copy CSV</button>
         </div>
+        <label class="chk" id="sharePhotosRow" hidden><input type="checkbox" id="sharePhotos" checked> Attach photos <span id="sharePhotoInfo"></span></label>
+        <div class="hint" id="shareHint" hidden>Opens your phone’s share menu with the file attached. Choose Mail (or Gmail, Outlook…). With no signal, the email waits in your outbox and sends when you’re back in range.</div>
         <textarea id="csvOut" readonly hidden aria-label="CSV text"></textarea>
       </div>
 
@@ -1090,6 +1098,7 @@ function renderLog() {
   $("#exportHint").textContent = !real.length ? "Your entries will export as one CSV row each, with coordinates, accuracy and comments."
     : pending ? `${real.length} entries on this device · ${pending} new or changed since the last export.`
     : `${real.length} entries on this device · all exported.`;
+  renderShare();
   renderPlot();
 }
 $("#list").addEventListener("click", async (ev) => {
@@ -1188,14 +1197,16 @@ function renderPlotOnMap(topo) {
 /* ---------- CSV export ---------- */
 const COLS = ["entry_id", "date_local", "time_local", "timestamp_utc", "category", "species_or_task", "scientific_name", "quantity", "unit",
   "method_or_status", "latitude_wgs84", "longitude_wgs84", "gps_accuracy_m", "altitude_m", "location_source", "observer", "site",
-  "comments", "voice_transcript", "voice_memo_on_device", "photos_on_device", "entered_utc", "last_edited_utc"];
+  "comments", "voice_transcript", "voice_memo_on_device", "photos_on_device", "photo_files", "entered_utc", "last_edited_utc"];
 const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const photoNames = (e) => (e.photos || []).map((_, i) => `${e.id}_photo${i + 1}.jpg`);
+const exportName = () => `field-log_${(site || "site").replace(/[^\w-]+/g, "-")}_${dateStr(new Date())}`;
 function buildCsv() {
   const rows = entries.filter((e) => !e.example).slice().sort((a, b) => a.ts - b.ts).map((e) => {
     const d = new Date(e.ts);
     return [e.id, dateStr(d), `${timeStr(d)}:${pad(d.getSeconds())}`, d.toISOString(), CATS[e.cat].label, e.sp, e.sci, e.qty, e.unit,
       e.method, fmt6(e.lat), fmt6(e.lon), e.acc != null ? Math.round(e.acc * 10) / 10 : "", e.alt != null ? Math.round(e.alt) : "",
-      e.src, e.observer, e.site, e.comment, e.transcript, e.audio ? "yes" : "no", (e.photos || []).length, new Date(e.logged || e.ts).toISOString(), e.edited ? new Date(e.edited).toISOString() : ""].map(csvCell).join(",");
+      e.src, e.observer, e.site, e.comment, e.transcript, e.audio ? "yes" : "no", (e.photos || []).length, photoNames(e).join("; "), new Date(e.logged || e.ts).toISOString(), e.edited ? new Date(e.edited).toISOString() : ""].map(csvCell).join(",");
   });
   return [COLS.join(",")].concat(rows).join("\r\n") + "\r\n";
 }
@@ -1205,7 +1216,7 @@ async function markExported() { lastExportAt = Date.now(); await store.setMeta("
 $("#exportBtn").addEventListener("click", async () => {
   if (!entries.some((e) => !e.example)) { toast("Nothing to export yet. Save an entry first."); return; }
   const csv = buildCsv();
-  const name = `field-log_${(site || "site").replace(/[^\w-]+/g, "-")}_${dateStr(new Date())}.csv`;
+  const name = exportName() + ".csv";
   const dl = await downloadsP;
   if (dl) {
     try { await dl.save({ filename: name, data: "﻿" + csv }); toast("Exported " + name); markExported(); }
@@ -1219,6 +1230,41 @@ $("#exportBtn").addEventListener("click", async () => {
     toast("Exported " + name); markExported();
   } catch (e) { showCsvText(csv); }
 });
+/* ---------- Send by email: the phone's share sheet with the CSV (and photos) attached ---------- */
+const canShareFiles = (() => {
+  try { return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [new File(["x"], "t.csv", { type: "text/csv" })] })); }
+  catch (e) { return false; }
+})();
+const mb = (n) => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + " MB";
+function renderShare() {
+  $("#shareBtn").hidden = !canShareFiles; $("#shareHint").hidden = !canShareFiles;
+  const real = entries.filter((e) => !e.example);
+  const photos = real.flatMap((e) => e.photos || []);
+  $("#sharePhotosRow").hidden = !canShareFiles || !photos.length;
+  $("#sharePhotoInfo").textContent = photos.length ? `(${photos.length}, about ${mb(photos.reduce((a, b) => a + b.size, 0))})` : "";
+}
+$("#shareBtn").addEventListener("click", async () => {
+  const real = entries.filter((e) => !e.example);
+  if (!real.length) { toast("Nothing to send yet. Save an entry first."); return; }
+  const files = [new File(["\ufeff" + buildCsv()], exportName() + ".csv", { type: "text/csv" })];
+  if ($("#sharePhotos").checked && !$("#sharePhotosRow").hidden) {
+    for (const e of real) (e.photos || []).forEach((b, i) => files.push(new File([b], photoNames(e)[i], { type: b.type || "image/jpeg" })));
+  }
+  let send = files;
+  if (!navigator.canShare({ files: send })) { send = files.slice(0, 1); toast("Photos can’t be attached here, sending the CSV only."); }
+  const total = send.reduce((a, f) => a + f.size, 0);
+  const n = real.length;
+  try {
+    await navigator.share({ files: send, title: "Field log export",
+      text: `Field log: ${n} ${n === 1 ? "entry" : "entries"}${site ? " from " + site : ""}, exported ${dateStr(new Date())} ${timeStr(new Date())}.` +
+        (send.length > 1 ? ` ${send.length - 1} photos attached; file names match the photo_files column.` : "") });
+    markExported(); toast("Handed to your email app");
+  } catch (err) {
+    if (err && err.name === "AbortError") return;    // closed the share menu
+    toast(total > 20 * 1048576 ? `Couldn’t share ${mb(total)}. Try without photos.` : "Couldn’t open the share menu. Use Export CSV instead.");
+  }
+});
+
 function showCsvText(csv) {
   const t = $("#csvOut"); t.value = csv; t.hidden = false; t.focus(); t.select();
   toast("Select all and copy the CSV text");
