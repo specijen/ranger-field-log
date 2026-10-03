@@ -85,8 +85,10 @@ h2 { font-family: var(--f-head); font-size: 1.1rem; text-transform: uppercase; l
 @media (prefers-reduced-motion: reduce) { .mic[aria-pressed="true"] { animation: none; } }
 .voice-status { font-size: .9rem; color: var(--muted); }
 .voice-status b { color: var(--ink); }
-.quick { display: flex; gap: 8px; margin-top: 8px; }
-.quick textarea { flex: 1; min-width: 0; min-height: 44px; resize: vertical; }
+.quick { grid-column: 1 / -1; display: grid; gap: 8px; }
+.quick textarea { min-height: 120px; font-size: 1.05rem; line-height: 1.45; resize: vertical; background: var(--surface); }
+.quick-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.quick-btns .btn { flex: 1 1 120px; }
 .parsed { font-size: .85rem; color: var(--muted); }
 .parsed b { color: var(--good); font-weight: 600; }
 
@@ -250,9 +252,13 @@ summary { cursor: pointer; font-weight: 700; }
         </button>
         <div style="min-width:0">
           <div class="voice-status" id="voiceStatus"><b>Tap to speak.</b> Say what, how many and how, e.g. “Shot three feral pigs at the north dam.”</div>
-          <div class="quick">
-            <textarea id="transcript" rows="2" placeholder="Transcript appears here. You can also type a note and tap Fill."></textarea>
-            <button type="button" class="btn" id="fillBtn">Fill</button>
+        </div>
+        <div class="quick">
+          <label class="lbl" for="transcript">Transcript</label>
+          <textarea id="transcript" rows="4" placeholder="What you say appears here. You can also type or dictate a note, then tap Fill form."></textarea>
+          <div class="quick-btns">
+            <button type="button" class="btn" id="fillBtn">Fill form</button>
+            <button type="button" class="btn" id="clearTranscript">Clear</button>
           </div>
           <div class="parsed" id="parsed"></div>
         </div>
@@ -802,6 +808,16 @@ function applyParse(text) {
     : "Couldn’t pick out a species or task. The note was added to comments.";
 }
 $("#fillBtn").addEventListener("click", () => applyParse($("#transcript").value));
+// Clear the transcript, and take it back out of Comments if Fill form put it there. Fields already filled stay as they are.
+$("#clearTranscript").addEventListener("click", () => {
+  const t = $("#transcript").value.trim();
+  const cm = $("#comment");
+  for (const text of new Set([t, draftTranscript].filter(Boolean))) {
+    if (cm.value.includes(text)) cm.value = cm.value.replace(text, "").replace(/\n{2,}/g, "\n").trim();
+  }
+  $("#transcript").value = ""; draftTranscript = ""; $("#parsed").textContent = "";
+  $("#transcript").focus();
+});
 
 /* ---------- Voice capture: audio memo always, live transcript when the device can ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
