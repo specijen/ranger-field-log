@@ -172,6 +172,17 @@ textarea { min-height: 84px; resize: vertical; }
 .hint { font-size: .85rem; color: var(--muted); }
 details { border-top: 1px solid var(--line); padding-top: 12px; }
 summary { cursor: pointer; font-weight: 700; }
+details.prev { border: 1px solid var(--line); border-radius: var(--r); padding: 0; }
+details.prev > summary { list-style: none; display: grid; gap: 2px; padding: 12px 44px 12px 14px; position: relative; min-height: 52px; }
+details.prev > summary::-webkit-details-marker { display: none; }
+details.prev > summary::after { content: ""; position: absolute; right: 16px; top: 50%; width: 10px; height: 10px; margin-top: -7px;
+  border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
+details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2px; }
+@media (prefers-reduced-motion: reduce) { details.prev > summary::after { transition: none; } }
+.prev-title { font-family: var(--f-head); text-transform: uppercase; letter-spacing: .05em; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.prev-count { font-family: var(--f-data); font-size: .8rem; letter-spacing: 0; background: var(--ink); color: var(--surface); border-radius: 999px; padding: 1px 8px; font-variant-numeric: tabular-nums; }
+.prev-latest { font-weight: 400; font-size: .85rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prev-body { padding: 0 14px 6px; display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
 .settings { display: grid; gap: 12px; margin-top: 12px; }
 #csvOut { font-family: var(--f-data); font-size: .75rem; min-height: 120px; }
 
@@ -372,12 +383,19 @@ summary { cursor: pointer; font-weight: 700; }
         <div class="plot-note" id="plotNote"></div>
       </div>
 
-      <div class="notice" id="exNotice" hidden>
-        These are example entries so you can see the layout. They are never exported.
-        <button type="button" class="btn" id="clearEx" style="margin-top:8px">Remove examples</button>
-      </div>
-
-      <ul class="list" id="list"></ul>
+      <details class="prev" id="prevLog">
+        <summary>
+          <span class="prev-title">Previously logged <span class="prev-count" id="prevCount">0</span></span>
+          <span class="prev-latest" id="prevLatest"></span>
+        </summary>
+        <div class="prev-body">
+          <div class="notice" id="exNotice" hidden>
+            These are example entries so you can see the layout. They are never exported.
+            <button type="button" class="btn" id="clearEx" style="margin-top:8px">Remove examples</button>
+          </div>
+          <ul class="list" id="list"></ul>
+        </div>
+      </details>
 
       <div class="export">
         <span class="lbl">Export</span>
@@ -1063,6 +1081,11 @@ function renderLog() {
       </li>`;
     }).join("");
   }
+  $("#prevCount").textContent = v.length;
+  const last = v[0];
+  $("#prevLatest").textContent = last
+    ? `Latest: ${last.sp} ×${last.qty} · ${dateStr(new Date(last.ts)) === dateStr(new Date()) ? "today" : dateStr(new Date(last.ts))} ${timeStr(new Date(last.ts))}`
+    : (filter === "all" ? "Nothing logged yet" : "Nothing in this view");
   const pending = real.filter((e) => (e.edited || e.ts) > lastExportAt).length;
   $("#exportHint").textContent = !real.length ? "Your entries will export as one CSV row each, with coordinates, accuracy and comments."
     : pending ? `${real.length} entries on this device · ${pending} new or changed since the last export.`
@@ -1090,6 +1113,7 @@ $("#list").addEventListener("click", async (ev) => {
     renderLog(); toast("Entry deleted");
   }
 });
+$("#prevLog").addEventListener("toggle", () => { store.setMeta("prevOpen", $("#prevLog").open).catch(() => {}); });
 $("#filters").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-f]"); if (!b) return;
   filter = b.dataset.f;
@@ -1453,6 +1477,7 @@ async function boot() {
   }
   entries.sort((a, b) => b.ts - a.ts);
   $("#site").value = site; $("#loggedBy").value = observer; setWhenMode("now");
+  try { $("#prevLog").open = !!(await store.getMeta("prevOpen")); } catch (e) {}
   onCatChange(); renderSettings(); renderNet(); renderLog();
   $("#voiceStatus").innerHTML = voiceIdleText();
   startGps(); renderGps();
