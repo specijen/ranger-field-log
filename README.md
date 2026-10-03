@@ -41,3 +41,13 @@ Do this once, with signal:
 ## Updating the app
 
 Edit `index.html`, then bump `VERSION` in `sw.js` so phones fetch the new copy. Installed phones update the next time they open the app with signal and show “Update downloaded”; reopening the app applies it.
+
+## Security notes
+
+- The page carries a Content-Security-Policy that only allows its own files, so it cannot send data to any other site. It refuses to run inside another website's frame.
+- CSV text that starts with `=`, `+`, `-` or `@` gets a leading `'` so spreadsheets treat it as text, not a formula. Plain numbers are untouched.
+- Only JPEG, PNG, HEIC and WebP photos are accepted.
+- Anyone who can push to this repository can change the app on every phone: keep two-factor sign-in on the GitHub account and limit who has write access.
+- All GitHub Pages sites under `specijen.github.io` share one browser storage area. Don't publish other sites there, or move Field Log to its own domain.
+- Entries, photos and memos are stored unencrypted in the phone's browser storage; keep phones locked with a passcode.
+

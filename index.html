@@ -1,4 +1,4 @@
-<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#17201b"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/icon-192.png"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#17201b"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/icon-192.png"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
 <title>Ranger Field Log</title>
 <style>
 /* Layout: one-column field tool on a phone (entry form, then log); form beside log on wide screens. System fonts only, so nothing is fetched when offline. */
@@ -494,6 +494,12 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
 <script>
 (() => {
 "use strict";
+// Refuse to run inside another website's frame, so a hostile page can't overlay it and trick taps.
+if (window.top !== window.self) {
+  document.body.innerHTML = '<p style="padding:24px;font:16px system-ui">Field Log can only be used directly. <a href="' +
+    location.href.replace(/[^\w:/.\-~%#?=&]/g, "") + '" target="_top" rel="noopener">Open Field Log</a></p>';
+  throw new Error("Field Log stopped: loaded inside a frame");
+}
 const $ = (s) => document.querySelector(s);
 
 /* ---------- Reference data ---------- */
@@ -965,7 +971,9 @@ async function shrinkPhoto(file) {
   } catch (e) { return file; }
 }
 async function addPhotos(files) {
-  const list = [...files].filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name));
+  const PHOTO_TYPES = /^image\/(jpeg|png|heic|heif|webp)$/i;
+  const list = [...files].filter((f) => PHOTO_TYPES.test(f.type) || (!f.type && /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name)));
+  if (list.length < files.length) toast("Only JPEG, PNG, HEIC or WebP photos can be added.");
   if (!list.length) return;
   for (const f of list) draftPhotos.push(await shrinkPhoto(f));
   renderPhotoThumbs();
@@ -1091,9 +1099,9 @@ function renderLog() {
     list.innerHTML = v.map((e) => {
       const d = new Date(e.ts);
       const loc = e.lat != null ? `${fmt6(e.lat)}, ${fmt6(e.lon)}` + (e.acc != null ? ` ±${Math.round(e.acc)} m` : "") + (e.src && e.src.startsWith("map") ? " (map)" : "") : "no location";
-      return `<li data-id="${e.id}">
+      return `<li data-id="${esc(e.id)}">
         <div class="ent-top">
-          <span class="tag ${e.cat}">${esc(CATS[e.cat].label)}</span>
+          <span class="tag ${esc(e.cat)}">${esc((CATS[e.cat] || { label: e.cat }).label)}</span>
           ${e.example ? '<span class="tag ex">Example</span>' : ""}
           <span class="ent-name">${esc(e.sp)}</span>
           <span class="ent-qty">${esc(e.qty)} ${esc(e.unit)}</span>
@@ -1222,7 +1230,13 @@ function renderPlotOnMap(topo) {
 const COLS = ["entry_id", "date_local", "time_local", "timestamp_utc", "category", "species_or_task", "scientific_name", "quantity", "unit",
   "method_or_status", "latitude_wgs84", "longitude_wgs84", "gps_accuracy_m", "altitude_m", "location_source", "observer", "site",
   "comments", "voice_transcript", "voice_memo_on_device", "photos_on_device", "photo_files", "entered_utc", "last_edited_utc"];
-const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+// Text starting with = + - @ (or a tab/return) is run as a formula by Excel and Sheets; a leading ' makes it plain text.
+// Plain numbers such as -32.753161 are left alone.
+const csvCell = (v) => {
+  let s = v == null ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s;
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
 /* ---------- What to export ---------- */
 let xMode = "all";
 const changedAt = (e) => e.edited || e.logged || e.ts;     // entered or edited since the last export counts as new
