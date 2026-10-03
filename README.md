@@ -11,7 +11,9 @@ Each entry records the species or task (with scientific name), quantity and unit
 - **Date and time:** *Log as now* uses the current time; change the date/time field to log something after the fact. The CSV keeps both the observation time and when it was entered.
 - **Logged by** is required and is remembered for the next entry.
 - **Location:** *Live GPS*, or *Use map* to tap the spot on the offline property map (aerial photo or topo, opening on whichever was used last). Map points are tagged `map-aerial` / `map-topo` with an estimated accuracy.
-- **Log again** on any entry copies it into the form with the current time and the same location, ready to check and save. Tap the microphone to log by voice: “shot three feral pigs at the north dam” fills in the form, and the recording is kept as an audio memo. Export everything as CSV for a spreadsheet or GIS.
+- **Log again** on any entry copies it into the form with the current time and the same location, ready to check and save.
+- **Photos:** *Take photo* opens the camera; *Choose from library* picks one or more existing photos. Photos are shrunk to 1600 px and stored with the entry on the phone; the CSV records how many each entry has (`photos_on_device`).
+- **Log history map:** logged points are drawn on the property's topo map, with the boundary and your current position. Tap the microphone to log by voice: “shot three feral pigs at the north dam” fills in the form, and the recording is kept as an audio memo. Export everything as CSV for a spreadsheet or GIS.
 
 **Works offline.** After the app is opened once with signal, it runs with no internet at all. Entries are stored only on the phone; nothing is sent anywhere. This repository holds the app's code, never field data.
 
