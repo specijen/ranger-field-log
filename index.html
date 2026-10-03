@@ -922,6 +922,22 @@ const IOS_OTHER_BROWSER = /iP(hone|ad|od)/.test(navigator.userAgent) && /CriOS|F
 const SR = IOS_OTHER_BROWSER ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
 let voiceMode = null;            // null | "transcribe" | "memo"
 let recog = null, srText = "", srInterim = "", srEnded = null, srRestarts = 0, srStartedAt = 0, srGotResult = false;
+// Chrome on Android repeats words in continuous mode (each "final" result is a longer copy of the last), so there
+// it listens one phrase at a time and restarts after each pause.
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const joinText = (a, b) => (a + " " + b).replace(/\s+/g, " ").trim();
+// Merge results where a phone sends growing or repeated copies ("shot", "shot three", "shot three pigs").
+function mergeResults(list) {
+  let acc = "";
+  for (const raw of list) {
+    const f = raw.replace(/\s+/g, " ").trim(); if (!f) continue;
+    const a = acc.toLowerCase(), l = f.toLowerCase();
+    if (!acc || l.startsWith(a)) acc = f;          // a longer copy of what we have
+    else if (a.endsWith(l) || a.includes(l)) continue;  // a repeat of something already there
+    else acc = acc + " " + f;
+  }
+  return acc;
+}
 let mediaRec = null, chunks = [];
 const setVoice = (html) => { $("#voiceStatus").innerHTML = html; };
 function voiceIdleText() {
@@ -949,18 +965,26 @@ function startTranscribe() {
 function runRecog() {
   const r = new SR();
   recog = r;
-  r.lang = "en-AU"; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+  r.lang = "en-AU"; r.continuous = !IS_ANDROID; r.interimResults = true; r.maxAlternatives = 1;
   if (!navigator.onLine) { try { r.processLocally = true; } catch (e) {} }   // no signal: ask for on-device speech
   srStartedAt = Date.now();
+  const base = srText;            // text from earlier phrases; this listening session adds to it
+  r.gotResult = false;
   r.onresult = (ev) => {
-    let fin = "", interim = "";
-    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+    // Rebuild this session's text from all its results each time, rather than adding pieces, so nothing doubles up.
+    const finals = [], interims = [];
+    for (let i = 0; i < ev.results.length; i++) {
       const res = ev.results[i];
-      if (res.isFinal) fin += res[0].transcript + " "; else interim += res[0].transcript + " ";
+      (res.isFinal ? finals : interims).push(res[0].transcript);
     }
-    if (fin) srText = (srText + " " + fin).replace(/\s+/g, " ").trim();
-    srInterim = interim.trim(); srGotResult = true;
-    $("#transcript").value = (srText + " " + srInterim).trim();
+    let session = mergeResults(finals);
+    let interim = mergeResults(interims);
+    if (session && interim.toLowerCase().startsWith(session.toLowerCase())) interim = interim.slice(session.length).trim();
+    // A phone that re-sends the previous phrase after restarting: don't add it twice
+    if (session && base.toLowerCase().endsWith(session.toLowerCase())) session = "";
+    srText = joinText(base, session);
+    srInterim = interim; srGotResult = true; r.gotResult = true;
+    $("#transcript").value = joinText(srText, srInterim);
   };
   r.onerror = (ev) => {
     r.failed = ev.error;
@@ -975,11 +999,13 @@ function runRecog() {
   };
   r.onend = () => {
     if (recog !== r) return;
-    if (srInterim) { srText = (srText + " " + srInterim).trim(); srInterim = ""; }   // keep words the phone hadn't finalised
+    if (srInterim) { srText = joinText(srText, srInterim); srInterim = ""; }   // keep words the phone hadn't finalised
     if (voiceMode === "transcribe" && !r.fatal) {
       // Phones stop listening after a pause; carry on until the person taps stop, but don't spin if it keeps ending at once.
-      const quick = Date.now() - srStartedAt < 1500 && !srGotResult;
-      if (++srRestarts <= 30 && !(quick && srRestarts > 2)) { try { runRecog(); return; } catch (e) {} }
+      // count only sessions that ended quickly with nothing heard; a normal phrase resets the count
+      const quick = Date.now() - srStartedAt < 1500 && !r.gotResult;
+      srRestarts = quick ? srRestarts + 1 : 0;
+      if (srRestarts <= 3) { try { runRecog(); return; } catch (e) {} }
       if (!srGotResult) { fallBackToMemo("Speech-to-text stopped working on this phone."); return; }
       finishVoice(); return;
     }
