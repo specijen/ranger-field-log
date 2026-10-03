@@ -1,6 +1,6 @@
 // Keeps the whole app on the phone so it opens with no signal.
 // Bump VERSION whenever any file below changes; phones pick up the new copy next time they're online.
-const VERSION = "field-log-v2";
+const VERSION = "field-log-v3";
 const FILES = [
   "./",
   "./index.html",
