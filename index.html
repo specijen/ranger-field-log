@@ -127,6 +127,9 @@ textarea { min-height: 84px; resize: vertical; }
 .loc-read .acc { font-weight: 700; }
 .acc.good { color: var(--good); } .acc.warn { color: var(--warn); } .acc.bad { color: var(--bad); }
 .loc-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.place-pick { display: flex; gap: 8px; flex-wrap: wrap; }
+.place-pick button { border: 1px solid var(--line); background: var(--sunk); border-radius: 999px; padding: 8px 14px; min-height: 40px; font-weight: 600; }
+.place-pick button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .btn { border: 1px solid var(--line); background: var(--sunk); border-radius: 8px; padding: 8px 14px; min-height: 42px; font-weight: 600; font-size: .9rem; }
 .btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .btn.danger { color: var(--bad); }
@@ -348,8 +351,10 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
             <div class="loc-btns">
               <button type="button" class="btn" id="locGps" aria-pressed="true">Live GPS</button>
               <button type="button" class="btn" id="locMap" aria-pressed="false">Use map</button>
+              <button type="button" class="btn" id="locPlace" aria-pressed="false">Place</button>
             </div>
           </div>
+          <div class="place-pick" id="placePick" role="group" aria-label="Saved places" hidden></div>
           <div class="loc-read" id="locRead">Waiting for GPS fix…</div>
         </div>
 
@@ -598,6 +603,16 @@ let fix = null, gpsErr = null;
 let locMode = "gps";           // "gps" | "map" | "kept"
 let editLoc = null;            // location carried over from the entry being edited or copied
 let mapPick = null;            // location chosen on the property map
+let placePick = null;          // name of the saved place chosen
+// Saved places on the property (WGS84). Add more here; each needs a unique name.
+const PLACES = [
+  { name: "Waterhole 1", lat: -32.753302, lon: 148.886656 },
+  { name: "Trap A", lat: -32.751954, lon: 148.888675 }
+];
+const findPlace = (n) => PLACES.find((p) => p.name === n);
+// Straight-line distance in metres, for "you are N m from here"
+const distM = (a, b) => { const R = 6371000, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lon - a.lon) * r;
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
 let whenMode = "now";          // "now" | "set"
 let draftAudio = null, draftTranscript = "";
 let draftPhotos = [];          // Blobs attached to the entry being written
@@ -701,8 +716,16 @@ function renderGps() {
 }
 function renderLocRead() {
   const el = $("#locRead");
+  if (locMode === "place") {
+    const pl = findPlace(placePick);
+    if (!pl) { el.textContent = "Choose a place above."; return; }
+    const away = fix ? Math.round(distM(fix, pl)) : null;
+    el.innerHTML = `<span><b>${esc(pl.name)}</b></span><span>${fmt6(pl.lat)}, ${fmt6(pl.lon)}</span><span>saved place</span>` +
+      (away != null ? `<span>you’re ${away >= 1000 ? (away / 1000).toFixed(1) + " km" : away + " m"} away</span>` : "");
+    return;
+  }
   if (locMode === "kept" && editLoc) {
-    el.innerHTML = `<span>${fmt6(editLoc.lat)}, ${fmt6(editLoc.lon)}</span>` +
+    el.innerHTML = (editLoc.place ? `<span><b>${esc(editLoc.place)}</b></span>` : "") + `<span>${fmt6(editLoc.lat)}, ${fmt6(editLoc.lon)}</span>` +
       (editLoc.acc != null ? `<span class="acc ${accClass(editLoc.acc)}">±${Math.round(editLoc.acc)} m</span>` : "") +
       `<span>${editLoc.copied ? "same place as the copied entry" : "this entry’s original location"}</span>`;
     return;
@@ -723,20 +746,33 @@ function renderLocRead() {
     el.textContent = "Waiting for a GPS fix… Stand clear of trees and buildings for a faster lock.";
   }
 }
+function renderPlaces() {
+  $("#placePick").innerHTML = PLACES.map((p) =>
+    `<button type="button" data-place="${esc(p.name)}" aria-pressed="${p.name === placePick}">${esc(p.name)}</button>`).join("");
+}
 function setLocMode(m) {
   locMode = m;
   $("#locGps").setAttribute("aria-pressed", m === "gps");
   $("#locMap").setAttribute("aria-pressed", m === "map");
+  $("#locPlace").setAttribute("aria-pressed", m === "place");
+  $("#placePick").hidden = m !== "place";
   if (m !== "kept") editLoc = null;
   if (m !== "map") mapPick = null;
-  renderLocRead();
+  if (m !== "place") placePick = null;
+  renderPlaces(); renderLocRead();
 }
 $("#locGps").addEventListener("click", () => setLocMode("gps"));
+$("#locPlace").addEventListener("click", () => setLocMode("place"));
+$("#placePick").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-place]"); if (!b) return;
+  placePick = b.dataset.place; renderPlaces(); renderLocRead();
+});
 $("#locMap").addEventListener("click", () => openMap());
 setInterval(() => { if (fix) renderGps(); }, 5000);
 
 function currentLocation() {
-  if (locMode === "kept" && editLoc) return { lat: editLoc.lat, lon: editLoc.lon, acc: editLoc.acc, alt: editLoc.alt, src: editLoc.src };
+  if (locMode === "place") { const pl = findPlace(placePick); return pl ? { lat: pl.lat, lon: pl.lon, acc: null, alt: null, src: "place", place: pl.name } : { missing: "place" }; }
+  if (locMode === "kept" && editLoc) return { lat: editLoc.lat, lon: editLoc.lon, acc: editLoc.acc, alt: editLoc.alt, src: editLoc.src, place: editLoc.place || "" };
   if (locMode === "map") return mapPick ? { lat: mapPick.lat, lon: mapPick.lon, acc: mapPick.acc, alt: null, src: "map-" + mapPick.layer.toLowerCase() } : { missing: true };
   if (fix) return { lat: fix.lat, lon: fix.lon, acc: fix.acc, alt: fix.alt, src: "gps" };
   return { lat: null, lon: null, acc: null, alt: null, src: "none" };
@@ -1107,7 +1143,7 @@ $("#form").addEventListener("submit", async (ev) => {
   if (isNaN(when)) { toast("Set a date and time, or tap Log as now."); $("#whenAt").focus(); return; }
   if (when > Date.now() + 5 * 60000) { toast("That time is in the future. Check the date and time."); $("#whenAt").focus(); return; }
   const loc = currentLocation();
-  if (loc.missing) { toast("Pick a point on the map, or switch to Live GPS."); return; }
+  if (loc.missing) { toast(loc.missing === "place" ? "Choose a place, or switch to Live GPS." : "Pick a point on the map, or switch to Live GPS."); return; }
   const sp = findSpecies(spName);
   const prev = editingId ? entries.find((e) => e.id === editingId) : null;
   const e = {
@@ -1117,7 +1153,7 @@ $("#form").addEventListener("submit", async (ev) => {
     edited: prev ? Date.now() : null,
     cat: cat(), sp: sp ? sp.n : spName, sci: sp ? sp.s : "",
     qty, unit: $("#unit").value, method: $("#method").value,
-    lat: loc.lat, lon: loc.lon, acc: loc.acc, alt: loc.alt, src: loc.src,
+    lat: loc.lat, lon: loc.lon, acc: loc.acc, alt: loc.alt, src: loc.src, place: loc.place || "",
     comment: $("#comment").value.trim(),
     transcript: draftTranscript || (prev ? prev.transcript : ""),
     audio: draftAudio || (prev ? prev.audio : null),
@@ -1141,7 +1177,8 @@ function loadIntoForm(e, mode) {
   draftAudio = null; renderAudioDraft();
   draftPhotos = mode === "edit" ? (e.photos || []).slice() : []; renderPhotoThumbs();
   if (mode === "edit") setWhenMode("set", e.ts); else setWhenMode("now");
-  if (e.lat != null) { setLocMode("kept"); editLoc = { lat: e.lat, lon: e.lon, acc: e.acc, alt: e.alt, src: e.src, copied: mode === "copy" }; renderLocRead(); }
+  if (e.place && findPlace(e.place)) { setLocMode("place"); placePick = e.place; renderPlaces(); renderLocRead(); }
+  else if (e.lat != null) { setLocMode("kept"); editLoc = { lat: e.lat, lon: e.lon, acc: e.acc, alt: e.alt, src: e.src, place: e.place || "", copied: mode === "copy" }; renderLocRead(); }
   else setLocMode("gps");
   setFormMode(mode); renderSugg();
   $("#entryH").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1177,7 +1214,7 @@ function renderLog() {
   else {
     list.innerHTML = v.map((e) => {
       const d = new Date(e.ts);
-      const loc = e.lat != null ? `${fmt6(e.lat)}, ${fmt6(e.lon)}` + (e.acc != null ? ` ±${Math.round(e.acc)} m` : "") + (e.src && e.src.startsWith("map") ? " (map)" : "") : "no location";
+      const loc = (e.place ? esc(e.place) + " · " : "") + (e.lat != null ? `${fmt6(e.lat)}, ${fmt6(e.lon)}` + (e.acc != null ? ` ±${Math.round(e.acc)} m` : "") + (e.src && e.src.startsWith("map") ? " (map)" : "") : "no location");
       return `<li data-id="${esc(e.id)}">
         <div class="ent-top">
           <span class="tag ${esc(e.cat)}">${esc((CATS[e.cat] || { label: e.cat }).label)}</span>
@@ -1307,7 +1344,7 @@ function renderPlotOnMap(topo) {
 
 /* ---------- CSV export ---------- */
 const COLS = ["entry_id", "date_local", "time_local", "timestamp_utc", "category", "species_or_task", "scientific_name", "quantity", "unit",
-  "method_or_status", "latitude_wgs84", "longitude_wgs84", "gps_accuracy_m", "altitude_m", "location_source", "observer", "site",
+  "method_or_status", "latitude_wgs84", "longitude_wgs84", "gps_accuracy_m", "altitude_m", "location_source", "place", "observer", "site",
   "comments", "voice_transcript", "voice_memo_on_device", "photos_on_device", "photo_files", "entered_utc", "last_edited_utc"];
 // Text starting with = + - @ (or a tab/return) is run as a formula by Excel and Sheets; a leading ' makes it plain text.
 // Plain numbers such as -32.753161 are left alone.
@@ -1362,7 +1399,7 @@ function buildCsv(list) {
     const d = new Date(e.ts);
     return [e.id, dateStr(d), `${timeStr(d)}:${pad(d.getSeconds())}`, d.toISOString(), CATS[e.cat].label, e.sp, e.sci, e.qty, e.unit,
       e.method, fmt6(e.lat), fmt6(e.lon), e.acc != null ? Math.round(e.acc * 10) / 10 : "", e.alt != null ? Math.round(e.alt) : "",
-      e.src, e.observer, e.site, e.comment, e.transcript, e.audio ? "yes" : "no", (e.photos || []).length, photoNames(e).join("; "), new Date(e.logged || e.ts).toISOString(), e.edited ? new Date(e.edited).toISOString() : ""].map(csvCell).join(",");
+      e.src, e.place || "", e.observer, e.site, e.comment, e.transcript, e.audio ? "yes" : "no", (e.photos || []).length, photoNames(e).join("; "), new Date(e.logged || e.ts).toISOString(), e.edited ? new Date(e.edited).toISOString() : ""].map(csvCell).join(",");
   });
   return [COLS.join(",")].concat(rows).join("\r\n") + "\r\n";
 }
