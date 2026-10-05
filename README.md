@@ -10,7 +10,7 @@ Each entry records the species or task (with scientific name), quantity and unit
 
 - **Date and time:** *Log as now* uses the current time; change the date/time field to log something after the fact. The CSV keeps both the observation time and when it was entered.
 - **Logged by** is required and is remembered for the next entry.
-- **Location:** *Live GPS*; *Use map* to tap the spot on the offline property map (aerial photo or topo, opening on whichever was used last), tagged `map-aerial` / `map-topo` with an estimated accuracy; or *Place* to pick a saved spot (Waterhole 1, Trap A), which uses its exact coordinates and fills the CSV's `place` column. Saved places are listed in `PLACES` near the top of the script in `index.html`.
+- **Location:** *Live GPS*; *Use map* to tap the spot on the offline property map (aerial photo or topo, opening on whichever was used last), tagged `map-aerial` / `map-topo` with an estimated accuracy; or *Place* to pick a saved spot (Waterhole 1, Trap A; example points inside Sea Acres), which uses its exact coordinates and fills the CSV's `place` column. Saved places are listed in `PLACES` near the top of the script in `index.html`.
 - **Log again** on any entry copies it into the form with the current time and the same location, ready to check and save.
 - **Photos:** *Take photo* opens the camera; *Choose from library* picks one or more existing photos. Photos are shrunk to 1600 px and stored with the entry on the phone. HEIC/HEIF photos (e.g. Samsung's "High efficiency pictures") are converted to JPEG on the phone when the browser can't show them, using the bundled `lib/heic-to` converter (LGPL-3.0, loaded only when needed, works offline); the CSV records how many each entry has (`photos_on_device`).
 - **Send by email:** opens the phone's share menu with the CSV attached (and, optionally, the photos, named to match the CSV's `photo_files` column). Pick Mail, Gmail or Outlook; without signal the email waits in the outbox. *Export CSV* saves the file instead, and *Copy CSV* puts the text on the clipboard. **What to export** applies to all three: *All entries*, *Since last export* (anything entered or edited since the last export), or *From – To* (by observation date, inclusive). A date-range export doesn't reset the *since last export* marker.
@@ -36,7 +36,7 @@ Do this once, with signal:
 
 ## Property map
 
-`maps/property-1/` holds the offline map: `aerial.jpg` and `topo.jpg` on a plain latitude/longitude grid, and `map.json` with their bounds and the property boundary. Source: NSW Spatial Services (CC BY 4.0); the aerial photo is the 50 cm Wellington capture listed for September 2014. Loading maps for other properties (*Change property map*) is planned.
+`maps/property-1/` holds the offline map of **Sea Acres National Park** (Port Macquarie, NSW): `aerial.jpg` and `topo.jpg` on a plain latitude/longitude grid, and `map.json` with their bounds and the park boundary. Sources: NSW Spatial Services imagery and topographic map (CC BY 4.0); the boundary is the NPWS reserve from the NSW Administrative Boundaries service. The NSW imagery index lists the Port Macquarie 10 cm capture of November 2012 here; newer imagery may be served. Loading maps for other properties (*Change property map*) is planned.
 
 ## Updating the app
 

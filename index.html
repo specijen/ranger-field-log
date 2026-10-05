@@ -199,9 +199,9 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
   padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 .mv-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--ink); color: var(--bg); }
 .mv-bar strong { font-family: var(--f-head); text-transform: uppercase; letter-spacing: .04em; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mv-bar .btn { background: transparent; color: var(--bg); border-color: color-mix(in srgb, var(--bg) 40%, var(--ink)); }
-.mv-layers { display: flex; border-radius: 8px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--bg) 40%, var(--ink)); }
-.mv-layers button { border: 0; background: transparent; color: var(--bg); padding: 8px 14px; font-weight: 700; min-height: 40px; }
+.mv-bar .btn { flex: none; background: transparent; color: var(--bg); border-color: color-mix(in srgb, var(--bg) 40%, var(--ink)); }
+.mv-layers { flex: none; display: flex; border-radius: 8px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--bg) 40%, var(--ink)); }
+.mv-layers button { border: 0; background: transparent; color: var(--bg); padding: 8px 12px; font-weight: 700; min-height: 40px; }
 .mv-layers button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .mv-stage { position: relative; overflow: hidden; touch-action: none; background: #5c6b5f; cursor: crosshair; }
 .mv-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
@@ -233,7 +233,7 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
   padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
 .lightbox img { width: 100%; height: 100%; object-fit: contain; }
 .lightbox .btn { justify-self: center; min-width: 140px; }
-.plot-map { position: relative; border-radius: 6px; overflow: hidden; }
+.plot-map { position: relative; border-radius: 6px; overflow: hidden; margin: 0 auto; }
 .plot-map img { display: block; width: 100%; height: auto; }
 .plot-map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .plot-note { font-size: .8rem; color: var(--muted); padding: 4px 4px 0; }
@@ -447,7 +447,7 @@ details.prev[open] > summary::after { transform: rotate(225deg); margin-top: -2p
       <details>
         <summary>Site and species list</summary>
         <div class="settings">
-          <div class="field"><label class="lbl" for="site">Property / site</label><input type="text" id="site" placeholder="e.g. Boorowa Creek Reserve"></div>
+          <div class="field"><label class="lbl" for="site">Property / site</label><input type="text" id="site" placeholder="e.g. Sea Acres National Park"></div>
           <div class="field">
             <span class="lbl">Add a species or task</span>
             <div class="row">
@@ -606,8 +606,8 @@ let mapPick = null;            // location chosen on the property map
 let placePick = null;          // name of the saved place chosen
 // Saved places on the property (WGS84). Add more here; each needs a unique name.
 const PLACES = [
-  { name: "Waterhole 1", lat: -32.753302, lon: 148.886656 },
-  { name: "Trap A", lat: -32.751954, lon: 148.888675 }
+  { name: "Waterhole 1", lat: -31.458392, lon: 152.930728 },
+  { name: "Trap A", lat: -31.465137, lon: 152.929788 }
 ];
 const findPlace = (n) => PLACES.find((p) => p.name === n);
 // Straight-line distance in metres, for "you are N m from here"
@@ -1351,6 +1351,7 @@ function renderPlotOnMap(topo) {
   const img = $("#plotImg"); const src = pmap.base + topo.src;
   if (img.getAttribute("src") !== src) img.setAttribute("src", src);
   $("#plotMap").hidden = false; $("#plot").setAttribute("hidden", "");
+  $("#plotMap").style.maxWidth = Math.round(440 * W / H) + "px";   // tall maps: cap the height at about 440 px
   const xy = (lon, lat) => [(lon - b.west) / (b.east - b.west) * W, (b.north - lat) / (b.north - b.south) * H];
   const inside = ([x, y]) => x >= 0 && y >= 0 && x <= W && y <= H;
   const u = W / 300;   // one "screen-ish" unit at the plot's usual width
@@ -1373,7 +1374,7 @@ const COLS = ["entry_id", "date_local", "time_local", "timestamp_utc", "category
   "method_or_status", "latitude_wgs84", "longitude_wgs84", "gps_accuracy_m", "altitude_m", "location_source", "place", "observer", "site",
   "comments", "voice_transcript", "voice_memo_on_device", "photos_on_device", "photo_files", "entered_utc", "last_edited_utc"];
 // Text starting with = + - @ (or a tab/return) is run as a formula by Excel and Sheets; a leading ' makes it plain text.
-// Plain numbers such as -32.753161 are left alone.
+// Plain numbers such as -31.465137 are left alone.
 const csvCell = (v) => {
   let s = v == null ? "" : String(v);
   if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)) s = "'" + s;
@@ -1532,14 +1533,14 @@ $("#clearEx").addEventListener("click", async () => {
 function examples() {
   const base = new Date(); base.setHours(6, 40, 0, 0);
   const at = (h, m) => base.getTime() + (h * 60 + m) * 60000;
-  const L = [-32.7545, 148.8860];
-  const mk = (o) => Object.assign({ id: "ex-" + uid(), edited: null, alt: 512, src: "gps", observer: "Example ranger", site: "Example reserve", transcript: "", audio: null, example: true }, o);
+  const mk = (o) => Object.assign({ id: "ex-" + uid(), edited: null, alt: 30, src: "gps", observer: "Example ranger", site: "Example reserve", transcript: "", audio: null, example: true }, o);
+  // Example points inside Sea Acres National Park
   return [
-    mk({ ts: at(0, 0), cat: "control", sp: "Feral pig", sci: "Sus scrofa", qty: 3, unit: "head", method: "Shot – ground", lat: L[0], lon: L[1], acc: 6, comment: "Sow and two juveniles rooting along the north dam wall. .308." , transcript: "shot three feral pigs at the north dam" }),
-    mk({ ts: at(0, 55), cat: "sighting", sp: "Short-beaked echidna", sci: "Tachyglossus aculeatus", qty: 1, unit: "individuals", method: "Seen", lat: L[0] + 0.0031, lon: L[1] + 0.0042, acc: 9, comment: "Foraging at base of termite mound beside the fire trail." }),
-    mk({ ts: at(1, 40), cat: "maintenance", sp: "Fence repair", sci: "", qty: 120, unit: "m", method: "Completed", lat: L[0] + 0.0052, lon: L[1] - 0.0021, acc: 12, comment: "Re-strained boundary fence and replaced 4 star pickets where pigs pushed under." }),
-    mk({ ts: at(2, 15), cat: "sighting", sp: "Glossy black-cockatoo", sci: "Calyptorhynchus lathami", qty: 4, unit: "individuals", method: "Heard", lat: L[0] + 0.0068, lon: L[1] + 0.0011, acc: 18, comment: "Feeding in she-oaks on the ridge. Two pairs." }),
-    mk({ ts: at(3, 5), cat: "control", sp: "Red fox", sci: "Vulpes vulpes", qty: 1, unit: "head", method: "Observed only", lat: L[0] + 0.0014, lon: L[1] - 0.0047, acc: 25, src: "gps", comment: "Crossing the creek flat. Set a camera trap on the den track next visit." })
+    mk({ ts: at(0, 0), cat: "control", sp: "Feral pig", sci: "Sus scrofa", qty: 3, unit: "head", method: "Shot – ground", lat: -31.4655, lon: 152.9310, acc: 6, comment: "Sow and two juveniles rooting beside the walking track. .308.", transcript: "shot three feral pigs near the walking track" }),
+    mk({ ts: at(0, 55), cat: "sighting", sp: "Short-beaked echidna", sci: "Tachyglossus aculeatus", qty: 1, unit: "individuals", method: "Seen", lat: -31.4625, lon: 152.9335, acc: 9, comment: "Foraging at the base of a log near the boardwalk." }),
+    mk({ ts: at(1, 40), cat: "maintenance", sp: "Fence repair", sci: "", qty: 120, unit: "m", method: "Completed", lat: -31.4690, lon: 152.9345, acc: 12, comment: "Repaired boundary fence and replaced 4 star pickets where pigs pushed under." }),
+    mk({ ts: at(2, 15), cat: "sighting", sp: "Glossy black-cockatoo", sci: "Calyptorhynchus lathami", qty: 4, unit: "individuals", method: "Heard", lat: -31.4590, lon: 152.9318, acc: 18, comment: "Feeding in she-oaks near the northern edge. Two pairs." }),
+    mk({ ts: at(3, 5), cat: "control", sp: "Red fox", sci: "Vulpes vulpes", qty: 1, unit: "head", method: "Observed only", lat: -31.4720, lon: 152.9365, acc: 25, comment: "Crossing the coastal track. Set a camera trap on the den track next visit." })
   ];
 }
 

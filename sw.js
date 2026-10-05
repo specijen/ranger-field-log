@@ -2,8 +2,8 @@
 // Two saved sets, so an app update doesn't re-download the big files:
 //   APP_VERSION    - the page itself. Bump on every app change (small download).
 //   STATIC_VERSION - icons, maps and the HEIC converter. Bump only when one of those files changes.
-const APP_VERSION = "field-log-app-v16";
-const STATIC_VERSION = "field-log-static-v1";
+const APP_VERSION = "field-log-app-v17";
+const STATIC_VERSION = "field-log-static-v2";
 const APP_FILES = ["./", "./index.html", "./manifest.webmanifest"];
 const STATIC_FILES = [
   "./icons/icon-192.png",
